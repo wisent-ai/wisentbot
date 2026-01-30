@@ -193,26 +193,74 @@ Agents can modify their own behavior at runtime using the `self` skill:
 
 ## Activation Steering (Wisent Integration)
 
-For agents running on local models, you can use [wisent](https://github.com/wisent-ai/wisent) for activation-level behavior control:
+For agents running on local models, full integration with [wisent](https://github.com/wisent-ai/wisent) for representation engineering:
 
 ```bash
 pip install wisentbot[steering]
 ```
 
+### Steering Methods
+
+Multiple steering methods available:
+- **CAA** - Contrastive Activation Addition (simple and effective)
+- **Hyperplane** - Hyperplane-based steering
+- **MLP** - MLP-based learned steering
+- **Prism** - Prism steering method
+- **Pulse** - Pulse steering method
+- **Titan** - Titan advanced steering
+
+### Steering Actions
+
 ```python
-# Steering actions available to the agent:
-# steering:add_contrastive_pair - Add good/bad example pair
-# steering:train_steering_vector - Train from collected pairs
-# steering:apply_steering - Apply steering to modify behavior
-# steering:remove_steering - Remove active steering
-# steering:detect_issue - Check if response is problematic
+# Setup
+# steering:init_wisent - Initialize wisent with your model
+# steering:status - Get steering status and capabilities
+# steering:methods - List available steering methods
+
+# Contrastive Pairs
+# steering:add_pair - Add good/bad response pair
+# steering:pairs_stats - View collected pairs
+# steering:clear_pairs - Clear pairs
+
+# Training
+# steering:train - Train a steering vector (specify method, layer)
+# steering:list_vectors - List trained vectors
+# steering:save_vector - Save vector to disk
+# steering:load_vector - Load vector from disk
+
+# Application (supports multi-steering)
+# steering:steer - Apply vectors: "name1:0.5,name2:1.0"
+# steering:unsteer - Remove all steering
+
+# Diagnostics (requires wisent agent features)
+# steering:diagnose - Analyze response for issues
+# steering:improve - Autonomously improve problematic responses
+# steering:marketplace - Browse classifier marketplace
+```
+
+### Example: Self-Steering Agent
+
+```python
+# Agent observes its own outputs and creates steering vectors
+# 1. Collect contrastive pairs from good/bad outputs
+# steering:add_pair prompt="What is 2+2?" good="4" bad="22" category="math"
+# steering:add_pair prompt="Capital of France?" good="Paris" bad="London" category="facts"
+
+# 2. Train a steering vector
+# steering:train name="accuracy" method="caa" category="facts"
+
+# 3. Apply steering with multi-steering support
+# steering:steer vectors="accuracy:1.5"
+
+# 4. Agent now generates more accurate responses at activation level
 ```
 
 This allows agents to:
-- Create steering vectors from their experiences
 - Modify behavior without retraining weights
-- Detect potentially harmful or hallucinatory outputs
-- Self-correct at the activation level
+- Combine multiple steering vectors with different weights
+- Diagnose responses for hallucinations/harmful content
+- Autonomously improve responses using classifier marketplace
+- Save/load vectors for persistent behavioral modifications
 
 ## Architecture
 
