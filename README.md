@@ -5,6 +5,8 @@ An open-source framework for building autonomous AI agents that can execute task
 ## Features
 
 - **Multi-LLM Support**: Anthropic Claude, OpenAI GPT, Google Vertex AI (Gemini), local models via vLLM/Transformers
+- **Self-Modification**: Agents can edit their prompts, switch models, and fine-tune themselves
+- **Activation Steering**: Integration with [wisent](https://github.com/wisent-ai/wisent) for representation engineering
 - **Modular Skills**: Extensible skill system for adding new capabilities
 - **Cost Tracking**: Built-in API cost and resource tracking
 - **Async First**: Fully asynchronous for high performance
@@ -26,6 +28,9 @@ pip install wisentbot[twitter,github,browser]
 
 # Local GPU inference
 pip install wisentbot[gpu]
+
+# Activation steering (wisent integration)
+pip install wisentbot[steering]
 ```
 
 ## Quick Start
@@ -79,6 +84,8 @@ VERCEL_TOKEN=...
 | `vercel` | Deploy to Vercel | `VERCEL_TOKEN` |
 | `namecheap` | Manage domains | `NAMECHEAP_*` |
 | `mcp` | MCP protocol client | None |
+| `self` | Self-modify prompts, switch models, fine-tune | `OPENAI_API_KEY` (for fine-tuning) |
+| `steering` | Activation steering via wisent | Local model required |
 
 ## Creating Custom Skills
 
@@ -157,6 +164,55 @@ agent = AutonomousAgent(
     llm_model="gemini-2.0-flash-001",
 )
 ```
+
+## Self-Modification
+
+Agents can modify their own behavior at runtime using the `self` skill:
+
+```python
+# Actions available to the agent:
+# self:get_prompt - View current system prompt
+# self:set_prompt - Replace entire system prompt
+# self:append_prompt - Add to system prompt
+# self:add_rule - Add a behavioral rule
+# self:add_goal - Add a personal goal
+# self:add_learning - Record something learned
+
+# Model switching:
+# self:list_models - List available models
+# self:current_model - Get current model info
+# self:switch_model - Switch to different model
+
+# Fine-tuning (requires OpenAI API):
+# self:record_experience - Record prompt/response pair
+# self:training_stats - View collected examples
+# self:start_finetune - Start fine-tuning job
+# self:check_finetune - Check job status
+# self:use_finetuned - Switch to fine-tuned model
+```
+
+## Activation Steering (Wisent Integration)
+
+For agents running on local models, you can use [wisent](https://github.com/wisent-ai/wisent) for activation-level behavior control:
+
+```bash
+pip install wisentbot[steering]
+```
+
+```python
+# Steering actions available to the agent:
+# steering:add_contrastive_pair - Add good/bad example pair
+# steering:train_steering_vector - Train from collected pairs
+# steering:apply_steering - Apply steering to modify behavior
+# steering:remove_steering - Remove active steering
+# steering:detect_issue - Check if response is problematic
+```
+
+This allows agents to:
+- Create steering vectors from their experiences
+- Modify behavior without retraining weights
+- Detect potentially harmful or hallucinatory outputs
+- Self-correct at the activation level
 
 ## Architecture
 

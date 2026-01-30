@@ -40,6 +40,7 @@ from .skills.shell import ShellSkill
 from .skills.mcp_client import MCPClientSkill
 from .skills.request import RequestSkill
 from .skills.self_modify import SelfModifySkill
+from .skills.steering import SteeringSkill
 
 
 class AutonomousAgent:
@@ -152,6 +153,9 @@ class AutonomousAgent:
             'repos': [],
         }
 
+        # Steering skill reference (set during skill init)
+        self._steering_skill = None
+
     def _init_skills(self):
         """Install skills that have credentials configured."""
         credentials = {
@@ -184,6 +188,7 @@ class AutonomousAgent:
             MCPClientSkill,
             RequestSkill,
             SelfModifySkill,
+            SteeringSkill,
         ]
 
         for skill_class in skill_classes:
@@ -216,6 +221,16 @@ class AutonomousAgent:
                         check_finetune=self.cognition.check_finetune_status,
                         use_finetuned=self.cognition.use_finetuned_model,
                     )
+
+                # Wire up steering skill to model access
+                if skill_class == SteeringSkill and skill:
+                    skill.set_model_hooks(
+                        get_model=self.cognition.get_model,
+                        get_tokenizer=self.cognition.get_tokenizer,
+                        is_local_model=self.cognition.is_local_model,
+                    )
+                    # Store reference for steering during generation
+                    self._steering_skill = skill
 
                 if skill and skill.check_credentials():
                     self._log("SKILL", f"+ {skill.manifest.name}")

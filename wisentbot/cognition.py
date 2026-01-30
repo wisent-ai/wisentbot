@@ -296,6 +296,20 @@ class CognitionEngine:
 
         print(f"[COGNITION] Initialized with {self.llm_type} backend")
 
+    # === Model access (for steering skill) ===
+
+    def get_model(self) -> Any:
+        """Get the underlying model (for steering skill)."""
+        return self.llm
+
+    def get_tokenizer(self) -> Any:
+        """Get the tokenizer (for steering skill)."""
+        return self.tokenizer
+
+    def is_local_model(self) -> bool:
+        """Check if running a local model (vLLM or Transformers)."""
+        return self.llm_type in ("vllm", "transformers")
+
     def get_system_prompt(self) -> str:
         """Get the current system prompt."""
         base = self.system_prompt or DEFAULT_SYSTEM_PROMPT.format(

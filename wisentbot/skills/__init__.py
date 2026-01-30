@@ -18,6 +18,7 @@ from .shell import ShellSkill
 from .twitter import TwitterSkill
 from .vercel import VercelSkill
 from .self_modify import SelfModifySkill
+from .steering import SteeringSkill
 
 __all__ = [
     # Base
@@ -39,4 +40,5 @@ __all__ = [
     "TwitterSkill",
     "VercelSkill",
     "SelfModifySkill",
+    "SteeringSkill",
 ]
