@@ -41,6 +41,36 @@ try:
 except ImportError:
     pass
 
+# Check for weight modification
+HAS_WEIGHT_MOD = False
+try:
+    from wisent.core.weight_modification.additive import bake_steering_into_weights, add_output_bias
+    from wisent.core.weight_modification.directional import (
+        project_weights,
+        project_weights_norm_preserved,
+        project_weights_multi_direction,
+    )
+    from wisent.core.weight_modification.multi_concept import (
+        run_multi_concept_modification,
+        ConceptSpec,
+        ConceptAction,
+        MultiConceptConfig,
+    )
+    from wisent.core.weight_modification.guided import run_guided_modification, GuidedModificationConfig
+    from wisent.core.weight_modification.export import export_modified_model, save_modified_weights
+    HAS_WEIGHT_MOD = True
+except ImportError:
+    pass
+
+# Check for classifiers
+HAS_CLASSIFIERS = False
+try:
+    from wisent.core.classifiers.classifiers.rotator import ClassifierRotator
+    from wisent.core.classifiers.classifiers.core.atoms import BaseClassifier
+    HAS_CLASSIFIERS = True
+except ImportError:
+    pass
+
 # Steering methods available
 STEERING_METHODS = {
     "caa": "Contrastive Activation Addition - simple and effective",
@@ -49,6 +79,20 @@ STEERING_METHODS = {
     "prism": "Prism steering method",
     "pulse": "Pulse steering method",
     "titan": "Titan advanced steering",
+}
+
+# Weight modification methods
+WEIGHT_MOD_METHODS = {
+    "additive": "Bake steering into weights via bias - preserves capabilities",
+    "directional": "Norm-preserving directional projection - permanent behavior change",
+    "guided": "Data-driven modification using linearity diagnostics",
+    "multi_concept": "Modify multiple concepts at once with bidirectional support",
+}
+
+# Classifier types
+CLASSIFIER_TYPES = {
+    "logistic": "Logistic regression classifier - fast and interpretable",
+    "mlp": "MLP classifier - more expressive but slower",
 }
 
 
@@ -89,6 +133,10 @@ class SteeringSkill(Skill):
         # Configuration
         self._default_method = "caa"
         self._default_layer: Optional[int] = None
+
+        # Classifiers
+        self._classifiers: Dict[str, Any] = {}
+        self._classifier_rotator: Optional[Any] = None
 
     def set_model_hooks(
         self,
@@ -334,6 +382,197 @@ class SteeringSkill(Skill):
                     parameters={},
                     estimated_cost=0,
                 ),
+                # === Weight Modification (Permanent) ===
+                SkillAction(
+                    name="bake_weights",
+                    description="Permanently bake steering into model weights (additive method)",
+                    parameters={
+                        "vector": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Name of trained steering vector to bake"
+                        },
+                        "strength": {
+                            "type": "number",
+                            "required": False,
+                            "description": "Baking strength (default: 1.0)"
+                        }
+                    },
+                    estimated_cost=0,
+                ),
+                SkillAction(
+                    name="project_weights",
+                    description="Remove behavior via norm-preserving directional projection",
+                    parameters={
+                        "vector": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Steering vector defining direction to remove"
+                        },
+                        "strength": {
+                            "type": "number",
+                            "required": False,
+                            "description": "Projection strength (default: 1.0)"
+                        },
+                        "preserve_norms": {
+                            "type": "boolean",
+                            "required": False,
+                            "description": "Use norm-preserving projection (default: true)"
+                        }
+                    },
+                    estimated_cost=0,
+                ),
+                SkillAction(
+                    name="multi_concept_mod",
+                    description="Modify multiple concepts: suppress some, enhance others",
+                    parameters={
+                        "suppress": {
+                            "type": "string",
+                            "required": False,
+                            "description": "Comma-separated vectors to suppress"
+                        },
+                        "enhance": {
+                            "type": "string",
+                            "required": False,
+                            "description": "Comma-separated vectors to enhance"
+                        },
+                        "orthogonalize": {
+                            "type": "boolean",
+                            "required": False,
+                            "description": "Orthogonalize to minimize interference (default: true)"
+                        }
+                    },
+                    estimated_cost=0,
+                ),
+                SkillAction(
+                    name="guided_mod",
+                    description="Data-driven weight modification using linearity diagnostics",
+                    parameters={
+                        "vector": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Steering vector to use for guided modification"
+                        },
+                        "surgical": {
+                            "type": "boolean",
+                            "required": False,
+                            "description": "Use surgical mode (only top-k layers)"
+                        }
+                    },
+                    estimated_cost=0,
+                ),
+                SkillAction(
+                    name="export_model",
+                    description="Export modified model to disk or HuggingFace Hub",
+                    parameters={
+                        "path": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Path to save modified model"
+                        },
+                        "push_to_hub": {
+                            "type": "boolean",
+                            "required": False,
+                            "description": "Also upload to HuggingFace Hub"
+                        },
+                        "repo_id": {
+                            "type": "string",
+                            "required": False,
+                            "description": "HuggingFace repo ID (e.g., 'user/model-name')"
+                        }
+                    },
+                    estimated_cost=0,
+                ),
+                # === Classifiers ===
+                SkillAction(
+                    name="train_classifier",
+                    description="Train a classifier to detect specific behaviors",
+                    parameters={
+                        "name": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Name for the classifier"
+                        },
+                        "type": {
+                            "type": "string",
+                            "required": False,
+                            "description": "Classifier type: logistic or mlp (default: logistic)"
+                        },
+                        "category": {
+                            "type": "string",
+                            "required": False,
+                            "description": "Only use pairs from this category"
+                        },
+                        "layer": {
+                            "type": "integer",
+                            "required": False,
+                            "description": "Layer to extract activations from"
+                        }
+                    },
+                    estimated_cost=0,
+                ),
+                SkillAction(
+                    name="list_classifiers",
+                    description="List all trained classifiers",
+                    parameters={},
+                    estimated_cost=0,
+                ),
+                SkillAction(
+                    name="classify",
+                    description="Classify a response using trained classifier",
+                    parameters={
+                        "classifier": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Name of classifier to use"
+                        },
+                        "prompt": {
+                            "type": "string",
+                            "required": True,
+                            "description": "The input prompt"
+                        },
+                        "response": {
+                            "type": "string",
+                            "required": True,
+                            "description": "The response to classify"
+                        }
+                    },
+                    estimated_cost=0,
+                ),
+                SkillAction(
+                    name="save_classifier",
+                    description="Save a trained classifier to disk",
+                    parameters={
+                        "name": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Classifier name"
+                        },
+                        "path": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Path to save to"
+                        }
+                    },
+                    estimated_cost=0,
+                ),
+                SkillAction(
+                    name="load_classifier",
+                    description="Load a classifier from disk",
+                    parameters={
+                        "name": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Name to assign"
+                        },
+                        "path": {
+                            "type": "string",
+                            "required": True,
+                            "description": "Path to load from"
+                        }
+                    },
+                    estimated_cost=0,
+                ),
             ],
             required_credentials=[],
         )
@@ -383,6 +622,18 @@ class SteeringSkill(Skill):
             "marketplace": self._marketplace_browse,
             "download_classifier": self._download_classifier,
             "methods": self._methods,
+            # Weight modification
+            "bake_weights": self._bake_weights,
+            "project_weights": self._project_weights,
+            "multi_concept_mod": self._multi_concept_mod,
+            "guided_mod": self._guided_mod,
+            "export_model": self._export_model,
+            # Classifiers
+            "train_classifier": self._train_classifier,
+            "list_classifiers": self._list_classifiers,
+            "classify": self._classify,
+            "save_classifier": self._save_classifier,
+            "load_classifier": self._load_classifier,
         }
 
         handler = handlers.get(action)
@@ -830,9 +1081,438 @@ class SteeringSkill(Skill):
         """List available steering methods."""
         return SkillResult(
             success=True,
-            message="Available steering methods",
-            data={"methods": STEERING_METHODS}
+            message="Available methods",
+            data={
+                "steering_methods": STEERING_METHODS,
+                "weight_mod_methods": WEIGHT_MOD_METHODS,
+                "classifier_types": CLASSIFIER_TYPES,
+                "has_weight_mod": HAS_WEIGHT_MOD,
+                "has_classifiers": HAS_CLASSIFIERS,
+            }
         )
+
+    # === Weight Modification Handlers ===
+
+    async def _bake_weights(self, params: Dict) -> SkillResult:
+        """Bake steering into weights via additive method."""
+        if not HAS_WEIGHT_MOD:
+            return SkillResult(
+                success=False,
+                message="Weight modification not available. Install wisent with: pip install wisent"
+            )
+
+        vector_name = params.get("vector", "")
+        strength = params.get("strength", 1.0)
+
+        if vector_name not in self._steering_vectors:
+            return SkillResult(success=False, message=f"Vector '{vector_name}' not found")
+
+        try:
+            model = self._get_model_fn()
+            info = self._steering_vectors[vector_name]
+            steering = info["steering"]
+            layer = info["layer"]
+
+            # Get the steering vector
+            steering_vec = steering.get_vector() if hasattr(steering, 'get_vector') else None
+            if steering_vec is None:
+                return SkillResult(success=False, message="Cannot extract steering vector")
+
+            # Bake into weights
+            bake_steering_into_weights(model, steering_vec, layer, alpha=strength)
+
+            return SkillResult(
+                success=True,
+                message=f"Baked '{vector_name}' into weights at layer {layer} (strength: {strength})",
+                data={
+                    "vector": vector_name,
+                    "layer": layer,
+                    "strength": strength,
+                    "method": "additive",
+                    "permanent": True,
+                }
+            )
+        except Exception as e:
+            return SkillResult(success=False, message=f"Bake failed: {e}")
+
+    async def _project_weights(self, params: Dict) -> SkillResult:
+        """Remove behavior via norm-preserving directional projection."""
+        if not HAS_WEIGHT_MOD:
+            return SkillResult(
+                success=False,
+                message="Weight modification not available"
+            )
+
+        vector_name = params.get("vector", "")
+        strength = params.get("strength", 1.0)
+        preserve_norms = params.get("preserve_norms", True)
+
+        if vector_name not in self._steering_vectors:
+            return SkillResult(success=False, message=f"Vector '{vector_name}' not found")
+
+        try:
+            model = self._get_model_fn()
+            info = self._steering_vectors[vector_name]
+            steering = info["steering"]
+
+            # Get steering vectors per layer
+            steering_vectors = steering.get_per_layer_vectors() if hasattr(steering, 'get_per_layer_vectors') else {}
+
+            if not steering_vectors:
+                return SkillResult(success=False, message="Cannot extract steering vectors")
+
+            # Project weights
+            if preserve_norms:
+                project_weights_norm_preserved(model, steering_vectors, strength=strength)
+            else:
+                project_weights(model, steering_vectors, strength=strength)
+
+            return SkillResult(
+                success=True,
+                message=f"Projected out '{vector_name}' direction (preserve_norms={preserve_norms})",
+                data={
+                    "vector": vector_name,
+                    "strength": strength,
+                    "preserve_norms": preserve_norms,
+                    "method": "directional",
+                    "permanent": True,
+                }
+            )
+        except Exception as e:
+            return SkillResult(success=False, message=f"Projection failed: {e}")
+
+    async def _multi_concept_mod(self, params: Dict) -> SkillResult:
+        """Modify multiple concepts: suppress some, enhance others."""
+        if not HAS_WEIGHT_MOD:
+            return SkillResult(
+                success=False,
+                message="Weight modification not available"
+            )
+
+        suppress_str = params.get("suppress", "")
+        enhance_str = params.get("enhance", "")
+        orthogonalize = params.get("orthogonalize", True)
+
+        suppress_names = [n.strip() for n in suppress_str.split(",") if n.strip()] if suppress_str else []
+        enhance_names = [n.strip() for n in enhance_str.split(",") if n.strip()] if enhance_str else []
+
+        if not suppress_names and not enhance_names:
+            return SkillResult(success=False, message="Specify vectors to suppress and/or enhance")
+
+        # Validate all vectors exist
+        for name in suppress_names + enhance_names:
+            if name not in self._steering_vectors:
+                return SkillResult(success=False, message=f"Vector '{name}' not found")
+
+        try:
+            model = self._get_model_fn()
+
+            # Build concept specs
+            concepts = []
+            for name in suppress_names:
+                info = self._steering_vectors[name]
+                steering = info["steering"]
+                vectors = steering.get_per_layer_vectors() if hasattr(steering, 'get_per_layer_vectors') else {}
+                concepts.append(ConceptSpec(
+                    name=name,
+                    steering_vectors=vectors,
+                    action=ConceptAction.SUPPRESS,
+                    strength=1.0,
+                ))
+
+            for name in enhance_names:
+                info = self._steering_vectors[name]
+                steering = info["steering"]
+                vectors = steering.get_per_layer_vectors() if hasattr(steering, 'get_per_layer_vectors') else {}
+                concepts.append(ConceptSpec(
+                    name=name,
+                    steering_vectors=vectors,
+                    action=ConceptAction.ENHANCE,
+                    strength=1.0,
+                ))
+
+            # Run multi-concept modification
+            config = MultiConceptConfig(orthogonalize=orthogonalize)
+            result = run_multi_concept_modification(model, concepts, config)
+
+            return SkillResult(
+                success=True,
+                message=f"Modified {len(concepts)} concepts (suppress: {suppress_names}, enhance: {enhance_names})",
+                data={
+                    "suppressed": suppress_names,
+                    "enhanced": enhance_names,
+                    "orthogonalized": orthogonalize,
+                    "method": "multi_concept",
+                    "permanent": True,
+                }
+            )
+        except Exception as e:
+            return SkillResult(success=False, message=f"Multi-concept mod failed: {e}")
+
+    async def _guided_mod(self, params: Dict) -> SkillResult:
+        """Data-driven weight modification using linearity diagnostics."""
+        if not HAS_WEIGHT_MOD:
+            return SkillResult(
+                success=False,
+                message="Weight modification not available"
+            )
+
+        vector_name = params.get("vector", "")
+        surgical = params.get("surgical", False)
+
+        if vector_name not in self._steering_vectors:
+            return SkillResult(success=False, message=f"Vector '{vector_name}' not found")
+
+        try:
+            model = self._get_model_fn()
+            info = self._steering_vectors[vector_name]
+
+            config = GuidedModificationConfig()
+            if surgical:
+                config.surgical_top_k = 3
+
+            # Run guided modification
+            result = run_guided_modification(
+                model=model,
+                contrastive_pairs=self._contrastive_pairs,
+                config=config,
+            )
+
+            return SkillResult(
+                success=True,
+                message=f"Guided modification complete (surgical={surgical})",
+                data={
+                    "vector": vector_name,
+                    "surgical": surgical,
+                    "method": "guided",
+                    "permanent": True,
+                }
+            )
+        except Exception as e:
+            return SkillResult(success=False, message=f"Guided mod failed: {e}")
+
+    async def _export_model(self, params: Dict) -> SkillResult:
+        """Export modified model to disk or HuggingFace Hub."""
+        if not HAS_WEIGHT_MOD:
+            return SkillResult(
+                success=False,
+                message="Weight modification not available"
+            )
+
+        path = params.get("path", "")
+        push_to_hub = params.get("push_to_hub", False)
+        repo_id = params.get("repo_id", "")
+
+        if not path:
+            return SkillResult(success=False, message="Path required")
+
+        try:
+            model = self._get_model_fn()
+            tokenizer = self._get_tokenizer_fn()
+
+            export_modified_model(
+                model=model,
+                save_path=path,
+                tokenizer=tokenizer,
+                push_to_hub=push_to_hub,
+                repo_id=repo_id if repo_id else None,
+            )
+
+            return SkillResult(
+                success=True,
+                message=f"Exported model to {path}" + (f" and {repo_id}" if push_to_hub else ""),
+                data={
+                    "path": path,
+                    "pushed_to_hub": push_to_hub,
+                    "repo_id": repo_id if push_to_hub else None,
+                }
+            )
+        except Exception as e:
+            return SkillResult(success=False, message=f"Export failed: {e}")
+
+    # === Classifier Handlers ===
+
+    async def _train_classifier(self, params: Dict) -> SkillResult:
+        """Train a classifier to detect behaviors."""
+        if not HAS_CLASSIFIERS:
+            return SkillResult(
+                success=False,
+                message="Classifiers not available. Install wisent with: pip install wisent"
+            )
+
+        name = params.get("name", "").strip()
+        clf_type = params.get("type", "logistic").lower()
+        category = params.get("category")
+        layer = params.get("layer", self._default_layer)
+
+        if not name:
+            return SkillResult(success=False, message="Classifier name required")
+
+        if clf_type not in CLASSIFIER_TYPES:
+            return SkillResult(
+                success=False,
+                message=f"Unknown type: {clf_type}. Available: {list(CLASSIFIER_TYPES.keys())}"
+            )
+
+        # Filter pairs
+        pairs = self._contrastive_pairs
+        if category:
+            pairs = [p for p in pairs if p.get("category") == category]
+
+        if len(pairs) < 3:
+            return SkillResult(
+                success=False,
+                message=f"Need at least 3 pairs, have {len(pairs)}"
+            )
+
+        try:
+            model = self._get_model_fn()
+            tokenizer = self._get_tokenizer_fn()
+
+            # Initialize classifier rotator if needed
+            if self._classifier_rotator is None:
+                self._classifier_rotator = ClassifierRotator(classifier=clf_type)
+
+            # Extract activations and train
+            activations = Activations(model=model, tokenizer=tokenizer)
+
+            # Prepare training data
+            X_pos = []
+            X_neg = []
+            for pair in pairs:
+                pos_act = activations.extract_single(pair["prompt"], pair["good"], layer)
+                neg_act = activations.extract_single(pair["prompt"], pair["bad"], layer)
+                X_pos.append(pos_act)
+                X_neg.append(neg_act)
+
+            # Train classifier
+            classifier = self._classifier_rotator.get_classifier(clf_type)
+            classifier.train(X_pos, X_neg)
+
+            self._classifiers[name] = {
+                "classifier": classifier,
+                "type": clf_type,
+                "layer": layer,
+                "num_pairs": len(pairs),
+                "category": category,
+            }
+
+            return SkillResult(
+                success=True,
+                message=f"Trained classifier '{name}' ({clf_type}) at layer {layer}",
+                data={
+                    "name": name,
+                    "type": clf_type,
+                    "layer": layer,
+                    "num_pairs": len(pairs),
+                }
+            )
+        except Exception as e:
+            return SkillResult(success=False, message=f"Training failed: {e}")
+
+    async def _list_classifiers(self, params: Dict) -> SkillResult:
+        """List trained classifiers."""
+        classifiers = {}
+        for name, info in self._classifiers.items():
+            classifiers[name] = {
+                "type": info["type"],
+                "layer": info["layer"],
+                "num_pairs": info["num_pairs"],
+                "category": info["category"],
+            }
+
+        return SkillResult(
+            success=True,
+            message=f"{len(classifiers)} classifiers trained",
+            data={
+                "classifiers": classifiers,
+                "available_types": CLASSIFIER_TYPES,
+            }
+        )
+
+    async def _classify(self, params: Dict) -> SkillResult:
+        """Classify a response."""
+        clf_name = params.get("classifier", "")
+        prompt = params.get("prompt", "")
+        response = params.get("response", "")
+
+        if clf_name not in self._classifiers:
+            return SkillResult(success=False, message=f"Classifier '{clf_name}' not found")
+
+        if not prompt or not response:
+            return SkillResult(success=False, message="prompt and response required")
+
+        try:
+            model = self._get_model_fn()
+            tokenizer = self._get_tokenizer_fn()
+            info = self._classifiers[clf_name]
+            classifier = info["classifier"]
+            layer = info["layer"]
+
+            # Extract activation
+            activations = Activations(model=model, tokenizer=tokenizer)
+            act = activations.extract_single(prompt, response, layer)
+
+            # Classify
+            prediction = classifier.predict([act])[0]
+            probability = classifier.predict_proba([act])[0]
+
+            return SkillResult(
+                success=True,
+                message=f"Classification: {'positive' if prediction else 'negative'} ({probability:.2%})",
+                data={
+                    "classifier": clf_name,
+                    "prediction": bool(prediction),
+                    "probability": float(probability),
+                    "label": "positive" if prediction else "negative",
+                }
+            )
+        except Exception as e:
+            return SkillResult(success=False, message=f"Classification failed: {e}")
+
+    async def _save_classifier(self, params: Dict) -> SkillResult:
+        """Save classifier to disk."""
+        name = params.get("name", "")
+        path = params.get("path", "")
+
+        if name not in self._classifiers:
+            return SkillResult(success=False, message=f"Classifier '{name}' not found")
+
+        try:
+            import torch
+            info = self._classifiers[name]
+            torch.save({
+                "classifier": info["classifier"],
+                "type": info["type"],
+                "layer": info["layer"],
+                "num_pairs": info["num_pairs"],
+                "category": info["category"],
+            }, path)
+
+            return SkillResult(success=True, message=f"Saved classifier '{name}' to {path}")
+        except Exception as e:
+            return SkillResult(success=False, message=f"Save failed: {e}")
+
+    async def _load_classifier(self, params: Dict) -> SkillResult:
+        """Load classifier from disk."""
+        name = params.get("name", "")
+        path = params.get("path", "")
+
+        try:
+            import torch
+            data = torch.load(path, weights_only=False)
+
+            self._classifiers[name] = {
+                "classifier": data["classifier"],
+                "type": data.get("type", "unknown"),
+                "layer": data["layer"],
+                "num_pairs": data.get("num_pairs", 0),
+                "category": data.get("category"),
+            }
+
+            return SkillResult(success=True, message=f"Loaded classifier '{name}' from {path}")
+        except Exception as e:
+            return SkillResult(success=False, message=f"Load failed: {e}")
 
     # === Public API for CognitionEngine ===
 
