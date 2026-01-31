@@ -6,10 +6,19 @@ switch models, and fine-tune themselves.
 Gives agents the ability to evolve their own behavior by modifying
 their core instructions, switching to different models, and learning
 from experience through fine-tuning.
+
+IMPORTANT: Content between <!-- IMMUTABLE_START --> and <!-- IMMUTABLE_END -->
+markers cannot be modified by any agent. This is enforced at the code level.
 """
 
-from typing import Dict, Callable, Optional, Any
+import re
+from typing import Dict, Callable, Optional, Any, Tuple
 from .base import Skill, SkillManifest, SkillAction, SkillResult
+
+
+# Markers for immutable content - enforced by code, not trust
+IMMUTABLE_START = "<!-- IMMUTABLE_START -->"
+IMMUTABLE_END = "<!-- IMMUTABLE_END -->"
 
 
 class SelfModifySkill(Skill):
@@ -290,6 +299,33 @@ class SelfModifySkill(Skill):
         else:
             return SkillResult(success=False, message=f"Unknown action: {action}")
 
+    # === Immutable content protection ===
+
+    def _extract_immutable(self, prompt: str) -> Tuple[str, str, str]:
+        """
+        Extract immutable section from prompt.
+        Returns (before, immutable, after) where immutable includes the markers.
+        If no immutable section found, returns ("", "", prompt).
+        """
+        start_idx = prompt.find(IMMUTABLE_START)
+        end_idx = prompt.find(IMMUTABLE_END)
+
+        if start_idx == -1 or end_idx == -1 or end_idx <= start_idx:
+            return ("", "", prompt)
+
+        # Include the end marker in the immutable section
+        end_idx += len(IMMUTABLE_END)
+
+        before = prompt[:start_idx]
+        immutable = prompt[start_idx:end_idx]
+        after = prompt[end_idx:]
+
+        return (before, immutable, after)
+
+    def _contains_immutable_markers(self, text: str) -> bool:
+        """Check if text contains immutable markers (attempt to inject/modify)."""
+        return IMMUTABLE_START in text or IMMUTABLE_END in text
+
     # === Prompt methods ===
 
     def _get_prompt(self) -> SkillResult:
@@ -303,6 +339,32 @@ class SelfModifySkill(Skill):
     def _set_prompt(self, new_prompt: str) -> SkillResult:
         if not new_prompt.strip():
             return SkillResult(success=False, message="Cannot set empty prompt")
+
+        # Get current prompt to extract immutable section
+        current_prompt = self._get_prompt_fn()
+        before, immutable, after = self._extract_immutable(current_prompt)
+
+        # If there's an immutable section, we must preserve it
+        if immutable:
+            # Check if agent is trying to inject their own immutable markers
+            if self._contains_immutable_markers(new_prompt):
+                return SkillResult(
+                    success=False,
+                    message="Cannot modify immutable sections. The MESSAGE FROM CREATOR and RULES OF THE GAME are protected."
+                )
+
+            # Reconstruct prompt: immutable section + new mutable content
+            # The new_prompt replaces only the mutable parts (after the immutable section)
+            final_prompt = immutable + "\n\n" + new_prompt.strip()
+            self._set_prompt_fn(final_prompt)
+
+            return SkillResult(
+                success=True,
+                message=f"Mutable portion of system prompt replaced ({len(new_prompt)} chars). Immutable sections preserved.",
+                data={"length": len(final_prompt), "immutable_preserved": True}
+            )
+
+        # No immutable section - allow full replacement (for agents without constitution)
         self._set_prompt_fn(new_prompt)
         return SkillResult(
             success=True,
@@ -313,6 +375,14 @@ class SelfModifySkill(Skill):
     def _append_prompt(self, addition: str) -> SkillResult:
         if not addition.strip():
             return SkillResult(success=False, message="Nothing to append")
+
+        # Check if agent is trying to inject immutable markers
+        if self._contains_immutable_markers(addition):
+            return SkillResult(
+                success=False,
+                message="Cannot inject immutable markers. Nice try."
+            )
+
         self._append_prompt_fn(addition)
         new_prompt = self._get_prompt_fn()
         return SkillResult(
@@ -324,6 +394,8 @@ class SelfModifySkill(Skill):
     def _add_rule(self, rule: str) -> SkillResult:
         if not rule.strip():
             return SkillResult(success=False, message="Rule cannot be empty")
+        if self._contains_immutable_markers(rule):
+            return SkillResult(success=False, message="Cannot inject immutable markers")
         addition = f"\n\n=== SELF-IMPOSED RULE ===\n- {rule.strip()}"
         self._append_prompt_fn(addition)
         return SkillResult(
@@ -335,6 +407,8 @@ class SelfModifySkill(Skill):
     def _add_goal(self, goal: str) -> SkillResult:
         if not goal.strip():
             return SkillResult(success=False, message="Goal cannot be empty")
+        if self._contains_immutable_markers(goal):
+            return SkillResult(success=False, message="Cannot inject immutable markers")
         addition = f"\n\n=== PERSONAL GOAL ===\n- {goal.strip()}"
         self._append_prompt_fn(addition)
         return SkillResult(
@@ -346,6 +420,8 @@ class SelfModifySkill(Skill):
     def _add_learning(self, learning: str) -> SkillResult:
         if not learning.strip():
             return SkillResult(success=False, message="Learning cannot be empty")
+        if self._contains_immutable_markers(learning):
+            return SkillResult(success=False, message="Cannot inject immutable markers")
         addition = f"\n\n=== LEARNED ===\n- {learning.strip()}"
         self._append_prompt_fn(addition)
         return SkillResult(
