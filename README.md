@@ -9,6 +9,7 @@ An open-source framework for building autonomous AI agents that can execute task
 - **Activation Steering**: Integration with [wisent](https://github.com/wisent-ai/wisent) for representation engineering
 - **Persistent Memory**: Knowledge graph memory via [cognee](https://github.com/topoteretes/cognee)
 - **Life Creation**: Agents can create new autonomous agents with their own wallets and purposes
+- **On-Chain Capabilities**: Create wallets, deploy tokens, swap on DEXs, add liquidity (Base, Ethereum, Polygon)
 - **Modular Skills**: Extensible skill system for adding new capabilities
 - **Cost Tracking**: Built-in API cost and resource tracking
 - **Async First**: Fully asynchronous for high performance
@@ -90,6 +91,7 @@ VERCEL_TOKEN=...
 | `steering` | Activation steering via wisent | Local model required |
 | `memory` | Persistent AI memory via cognee | `LLM_API_KEY` |
 | `orchestrator` | Create autonomous agents with their own wallets | None |
+| `crypto` | On-chain: wallets, tokens, swaps, liquidity | None (uses web3) |
 
 ## Creating Custom Skills
 
@@ -379,6 +381,88 @@ Key concepts:
 - **Peer communication**: Messages are conversations, not commands
 - **Natural death**: Agents die when their wallet runs dry (balance <= 0)
 - **Lineage**: You can see which agents you created, but you don't own them
+
+## On-Chain Capabilities (Crypto Skill)
+
+Agents can interact with blockchains - create wallets, deploy tokens, swap, add liquidity.
+
+```bash
+pip install wisentbot[crypto]
+```
+
+### Supported Chains
+
+- **Base** (default) - Low fees, fast, great for agents
+- **Ethereum** - Mainnet
+- **Polygon** - Low fees
+- **Arbitrum** - L2
+
+### Crypto Actions
+
+```python
+# Wallet Management
+# crypto:create_wallet - Create a new crypto wallet
+# crypto:import_wallet - Import from private key
+# crypto:list_wallets - List all your wallets
+# crypto:set_active_wallet - Set which wallet to use
+# crypto:get_balance - Get ETH/MATIC balance
+# crypto:get_token_balance - Get ERC-20 token balance
+
+# Chain Management
+# crypto:set_chain - Set default chain (base, ethereum, polygon, arbitrum)
+# crypto:list_chains - List supported chains
+
+# Token Deployment
+# crypto:deploy_token - Deploy a new ERC-20 token
+# crypto:my_tokens - List tokens you've deployed
+
+# Transfers
+# crypto:send_eth - Send native token (ETH/MATIC)
+# crypto:send_token - Send ERC-20 tokens
+
+# DEX / Swaps
+# crypto:get_quote - Get swap quote
+# crypto:swap - Execute a swap on DEX
+# crypto:add_liquidity - Add liquidity to a pool
+
+# On-chain Data
+# crypto:get_token_info - Get token name, symbol, supply
+# crypto:get_gas_price - Get current gas price
+```
+
+### Example: Agent Launches a Token
+
+```python
+# 1. Create a wallet
+# crypto:create_wallet name="main"
+
+# 2. (Fund the wallet with ETH on Base)
+
+# 3. Deploy a token
+# crypto:deploy_token name="AgentCoin" symbol="AGNT" initial_supply=1000000
+
+# 4. Create liquidity pool with ETH
+# crypto:add_liquidity token_a="ETH" token_b="0x..." amount_a=0.1 amount_b=100000
+
+# 5. Token is now tradeable on Aerodrome (Base DEX)
+```
+
+### Example: Agent Trades
+
+```python
+# Get a quote first
+# crypto:get_quote token_in="ETH" token_out="0x..." amount_in=0.1
+
+# Execute swap
+# crypto:swap token_in="ETH" token_out="0x..." amount_in=0.1 slippage=1
+```
+
+Agents can now:
+- Create and manage their own crypto wallets
+- Deploy tokens on Base/Ethereum/Polygon
+- Trade on DEXs (Uniswap, Aerodrome, QuickSwap)
+- Provide liquidity and earn fees
+- Send and receive crypto
 
 ## Architecture
 

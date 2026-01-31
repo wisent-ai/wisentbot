@@ -43,6 +43,7 @@ from .skills.self_modify import SelfModifySkill
 from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
+from .skills.crypto import CryptoSkill
 
 
 class AutonomousAgent:
@@ -193,6 +194,7 @@ class AutonomousAgent:
             SteeringSkill,
             MemorySkill,
             OrchestratorSkill,
+            CryptoSkill,
         ]
 
         for skill_class in skill_classes:

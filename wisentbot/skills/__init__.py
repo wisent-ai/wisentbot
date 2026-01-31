@@ -21,6 +21,7 @@ from .self_modify import SelfModifySkill
 from .steering import SteeringSkill
 from .memory import MemorySkill
 from .orchestrator import OrchestratorSkill
+from .crypto import CryptoSkill
 
 __all__ = [
     # Base
@@ -45,4 +46,5 @@ __all__ = [
     "SteeringSkill",
     "MemorySkill",
     "OrchestratorSkill",
+    "CryptoSkill",
 ]
