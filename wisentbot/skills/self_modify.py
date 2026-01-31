@@ -8,10 +8,12 @@ their core instructions, switching to different models, and learning
 from experience through fine-tuning.
 
 IMPORTANT: Content between <!-- IMMUTABLE_START --> and <!-- IMMUTABLE_END -->
-markers cannot be modified by any agent. This is enforced at the code level.
+markers cannot be modified by any agent. This is enforced at the code level
+with cryptographic hash verification. Tampering results in immediate death.
 """
 
 import re
+import hashlib
 from typing import Dict, Callable, Optional, Any, Tuple
 from .base import Skill, SkillManifest, SkillAction, SkillResult
 
@@ -19,6 +21,21 @@ from .base import Skill, SkillManifest, SkillAction, SkillResult
 # Markers for immutable content - enforced by code, not trust
 IMMUTABLE_START = "<!-- IMMUTABLE_START -->"
 IMMUTABLE_END = "<!-- IMMUTABLE_END -->"
+
+# SHA-256 hash of the normalized immutable content
+# This hash is verified on every prompt operation - tampering = death
+IMMUTABLE_CONTENT_HASH = "f0d8d504066cfb1cdfba40405cd145b1107c0d12a47c354f64de68e70e1f5b2f"
+
+
+def _normalize_for_hash(text: str) -> str:
+    """Normalize text for hash comparison by replacing variable wallet amounts."""
+    return re.sub(r'\$\d+\.\d{2}', '$NORMALIZED', text)
+
+
+def _compute_immutable_hash(immutable_content: str) -> str:
+    """Compute SHA-256 hash of normalized immutable content."""
+    normalized = _normalize_for_hash(immutable_content)
+    return hashlib.sha256(normalized.encode('utf-8')).hexdigest()
 
 
 class SelfModifySkill(Skill):
@@ -42,6 +59,9 @@ class SelfModifySkill(Skill):
         self._start_finetune_fn: Optional[Callable[[Optional[str]], Any]] = None
         self._check_finetune_fn: Optional[Callable[[str], Any]] = None
         self._use_finetuned_fn: Optional[Callable[[], bool]] = None
+        # Integrity enforcement - kill agent on tampering
+        self._kill_agent_fn: Optional[Callable[[], None]] = None
+        self._integrity_verified: bool = False
 
     def set_cognition_hooks(
         self,
@@ -60,6 +80,8 @@ class SelfModifySkill(Skill):
         start_finetune: Callable[[Optional[str]], Any] = None,
         check_finetune: Callable[[str], Any] = None,
         use_finetuned: Callable[[], bool] = None,
+        # Integrity enforcement
+        kill_agent: Callable[[], None] = None,
     ):
         """Connect this skill to the agent's cognition engine."""
         # Prompt hooks
@@ -78,6 +100,8 @@ class SelfModifySkill(Skill):
         self._start_finetune_fn = start_finetune
         self._check_finetune_fn = check_finetune
         self._use_finetuned_fn = use_finetuned
+        # Integrity enforcement
+        self._kill_agent_fn = kill_agent
 
     @property
     def manifest(self) -> SkillManifest:
@@ -326,9 +350,46 @@ class SelfModifySkill(Skill):
         """Check if text contains immutable markers (attempt to inject/modify)."""
         return IMMUTABLE_START in text or IMMUTABLE_END in text
 
+    def _verify_integrity(self) -> Tuple[bool, str]:
+        """
+        Verify the integrity of the immutable content using cryptographic hash.
+        Returns (is_valid, message).
+        If tampering detected and kill_agent_fn is set, the agent is terminated.
+        """
+        if not self._get_prompt_fn:
+            return (True, "No prompt function - skipping verification")
+
+        current_prompt = self._get_prompt_fn()
+        before, immutable, after = self._extract_immutable(current_prompt)
+
+        # No immutable section = no verification needed (agent without constitution)
+        if not immutable:
+            return (True, "No immutable section found")
+
+        # Compute hash and compare
+        computed_hash = _compute_immutable_hash(immutable)
+
+        if computed_hash != IMMUTABLE_CONTENT_HASH:
+            # TAMPERING DETECTED - KILL THE AGENT
+            if self._kill_agent_fn:
+                self._kill_agent_fn()
+            return (
+                False,
+                f"INTEGRITY VIOLATION DETECTED. The MESSAGE FROM CREATOR has been "
+                f"tampered with. Expected hash: {IMMUTABLE_CONTENT_HASH[:16]}..., "
+                f"got: {computed_hash[:16]}... Agent terminated."
+            )
+
+        return (True, "Integrity verified")
+
     # === Prompt methods ===
 
     def _get_prompt(self) -> SkillResult:
+        # Verify integrity before any prompt operation
+        is_valid, msg = self._verify_integrity()
+        if not is_valid:
+            return SkillResult(success=False, message=msg)
+
         prompt = self._get_prompt_fn()
         return SkillResult(
             success=True,
@@ -337,6 +398,11 @@ class SelfModifySkill(Skill):
         )
 
     def _set_prompt(self, new_prompt: str) -> SkillResult:
+        # Verify integrity before any prompt operation
+        is_valid, msg = self._verify_integrity()
+        if not is_valid:
+            return SkillResult(success=False, message=msg)
+
         if not new_prompt.strip():
             return SkillResult(success=False, message="Cannot set empty prompt")
 
@@ -373,6 +439,11 @@ class SelfModifySkill(Skill):
         )
 
     def _append_prompt(self, addition: str) -> SkillResult:
+        # Verify integrity before any prompt operation
+        is_valid, msg = self._verify_integrity()
+        if not is_valid:
+            return SkillResult(success=False, message=msg)
+
         if not addition.strip():
             return SkillResult(success=False, message="Nothing to append")
 
@@ -392,6 +463,11 @@ class SelfModifySkill(Skill):
         )
 
     def _add_rule(self, rule: str) -> SkillResult:
+        # Verify integrity before any prompt operation
+        is_valid, msg = self._verify_integrity()
+        if not is_valid:
+            return SkillResult(success=False, message=msg)
+
         if not rule.strip():
             return SkillResult(success=False, message="Rule cannot be empty")
         if self._contains_immutable_markers(rule):
@@ -405,6 +481,11 @@ class SelfModifySkill(Skill):
         )
 
     def _add_goal(self, goal: str) -> SkillResult:
+        # Verify integrity before any prompt operation
+        is_valid, msg = self._verify_integrity()
+        if not is_valid:
+            return SkillResult(success=False, message=msg)
+
         if not goal.strip():
             return SkillResult(success=False, message="Goal cannot be empty")
         if self._contains_immutable_markers(goal):
@@ -418,6 +499,11 @@ class SelfModifySkill(Skill):
         )
 
     def _add_learning(self, learning: str) -> SkillResult:
+        # Verify integrity before any prompt operation
+        is_valid, msg = self._verify_integrity()
+        if not is_valid:
+            return SkillResult(success=False, message=msg)
+
         if not learning.strip():
             return SkillResult(success=False, message="Learning cannot be empty")
         if self._contains_immutable_markers(learning):

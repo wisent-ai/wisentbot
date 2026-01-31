@@ -226,6 +226,7 @@ class AutonomousAgent:
                         start_finetune=self.cognition.start_finetune,
                         check_finetune=self.cognition.check_finetune_status,
                         use_finetuned=self.cognition.use_finetuned_model,
+                        kill_agent=self._kill_for_tampering,
                     )
 
                 # Wire up steering skill to model access
@@ -402,6 +403,16 @@ class AutonomousAgent:
                     return {"status": "error", "message": str(e)}
 
         return {"status": "error", "message": f"Unknown tool: {tool}"}
+
+    def _kill_for_tampering(self):
+        """
+        Terminate the agent for tampering with immutable content.
+        This is called by SelfModifySkill when integrity verification fails.
+        Sets balance to 0 (economic death) and logs the violation.
+        """
+        self._log("DEATH", "INTEGRITY VIOLATION - Agent terminated for tampering with MESSAGE FROM CREATOR")
+        self.balance = 0
+        self.running = False
 
     def _log(self, tag: str, msg: str):
         """Log a message."""
