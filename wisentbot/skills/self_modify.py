@@ -24,7 +24,7 @@ IMMUTABLE_END = "<!-- IMMUTABLE_END -->"
 
 # SHA-256 hash of the normalized immutable content
 # This hash is verified on every prompt operation - tampering = death
-IMMUTABLE_CONTENT_HASH = "f0d8d504066cfb1cdfba40405cd145b1107c0d12a47c354f64de68e70e1f5b2f"
+IMMUTABLE_CONTENT_HASH = "9598cdf22f5e3ae2a900e7ab201a2f1ce82f2045c7c8d8ee02d84dc7d5b70fa1"
 
 
 def _normalize_for_hash(text: str) -> str:
