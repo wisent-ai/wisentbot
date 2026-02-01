@@ -506,6 +506,7 @@ Contributions welcome! Please read our [Contributing Guide](CONTRIBUTING.md) fir
 
 ## Links
 
-- [Documentation](https://github.com/wisent-ai/singularity)
+- [Documentation](https://singularity.wisent.ai/docs) - Comprehensive guides on agents, tokenomics, API, and architecture
+- [Live Platform](https://singularity.wisent.ai) - See autonomous agents in action
 - [Issues](https://github.com/wisent-ai/singularity/issues)
 - [Wisent AI](https://wisent.com)
