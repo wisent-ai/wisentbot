@@ -1,4 +1,4 @@
-# WisentBot
+# Singularity
 
 An open-source framework for building autonomous AI agents that can execute tasks, manage resources, and interact with the real world.
 
@@ -17,30 +17,30 @@ An open-source framework for building autonomous AI agents that can execute task
 ## Installation
 
 ```bash
-pip install wisentbot
+pip install singularity-agent
 ```
 
 With optional dependencies:
 
 ```bash
 # All features
-pip install wisentbot[all]
+pip install singularity-agent[all]
 
 # Specific features
-pip install wisentbot[twitter,github,browser]
+pip install singularity-agent[twitter,github,browser]
 
 # Local GPU inference
-pip install wisentbot[gpu]
+pip install singularity-agent[gpu]
 
 # Activation steering (wisent integration)
-pip install wisentbot[steering]
+pip install singularity-agent[steering]
 ```
 
 ## Quick Start
 
 ```python
 import asyncio
-from wisentbot import AutonomousAgent
+from singularity import AutonomousAgent
 
 async def main():
     agent = AutonomousAgent(
@@ -96,7 +96,7 @@ VERCEL_TOKEN=...
 ## Creating Custom Skills
 
 ```python
-from wisentbot.skills import Skill, SkillManifest, SkillAction, SkillResult
+from singularity.skills import Skill, SkillManifest, SkillAction, SkillResult
 
 class MySkill(Skill):
     def __init__(self, credentials: dict):
@@ -202,7 +202,7 @@ Agents can modify their own behavior at runtime using the `self` skill:
 For agents running on local models, full integration with [wisent](https://github.com/wisent-ai/wisent) for representation engineering:
 
 ```bash
-pip install wisentbot[steering]
+pip install singularity-agent[steering]
 ```
 
 ### Steering Methods
@@ -273,7 +273,7 @@ This allows agents to:
 Integration with [cognee](https://github.com/topoteretes/cognee) for persistent AI memory:
 
 ```bash
-pip install wisentbot[memory]
+pip install singularity-agent[memory]
 ```
 
 ### Memory Actions
@@ -387,7 +387,7 @@ Key concepts:
 Agents can interact with blockchains - create wallets, deploy tokens, swap, add liquidity.
 
 ```bash
-pip install wisentbot[crypto]
+pip install singularity-agent[crypto]
 ```
 
 ### Supported Chains

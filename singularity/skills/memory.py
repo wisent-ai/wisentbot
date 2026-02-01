@@ -51,9 +51,9 @@ class MemorySkill(Skill):
         super().__init__(credentials)
         self._initialized = False
         self._agent_name: Optional[str] = None
-        self._dataset_prefix: str = "wisentbot"
+        self._dataset_prefix: str = "singularity"
 
-    def set_agent_context(self, agent_name: str, dataset_prefix: str = "wisentbot"):
+    def set_agent_context(self, agent_name: str, dataset_prefix: str = "singularity"):
         """Set the agent context for memory isolation."""
         self._agent_name = agent_name
         self._dataset_prefix = dataset_prefix

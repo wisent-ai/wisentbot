@@ -243,7 +243,7 @@ class AutonomousAgent:
                 if skill_class == MemorySkill and skill:
                     skill.set_agent_context(
                         agent_name=self.name.lower().replace(" ", "_"),
-                        dataset_prefix="wisentbot",
+                        dataset_prefix="singularity",
                     )
 
                 # Wire up orchestrator skill with agent factory

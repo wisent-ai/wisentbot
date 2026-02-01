@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from wisentbot import AutonomousAgent
+from singularity import AutonomousAgent
 
 
 async def main():
