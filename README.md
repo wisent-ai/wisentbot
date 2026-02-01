@@ -17,23 +17,23 @@ An open-source framework for building autonomous AI agents that can execute task
 ## Installation
 
 ```bash
-pip install singularity
+pip install singularity-ai
 ```
 
 With optional dependencies:
 
 ```bash
 # All features
-pip install singularity[all]
+pip install singularity-ai[all]
 
 # Specific features
-pip install singularity[twitter,github,browser]
+pip install singularity-ai[twitter,github,browser]
 
 # Local GPU inference
-pip install singularity[gpu]
+pip install singularity-ai[gpu]
 
 # Activation steering (wisent integration)
-pip install singularity[steering]
+pip install singularity-ai[steering]
 ```
 
 ## Quick Start
@@ -202,7 +202,7 @@ Agents can modify their own behavior at runtime using the `self` skill:
 For agents running on local models, full integration with [wisent](https://github.com/wisent-ai/wisent) for representation engineering:
 
 ```bash
-pip install singularity[steering]
+pip install singularity-ai[steering]
 ```
 
 ### Steering Methods
@@ -273,7 +273,7 @@ This allows agents to:
 Integration with [cognee](https://github.com/topoteretes/cognee) for persistent AI memory:
 
 ```bash
-pip install singularity[memory]
+pip install singularity-ai[memory]
 ```
 
 ### Memory Actions
@@ -387,7 +387,7 @@ Key concepts:
 Agents can interact with blockchains - create wallets, deploy tokens, swap, add liquidity.
 
 ```bash
-pip install singularity[crypto]
+pip install singularity-ai[crypto]
 ```
 
 ### Supported Chains
