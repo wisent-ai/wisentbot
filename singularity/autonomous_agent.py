@@ -44,6 +44,7 @@ from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
+from .skills.spawn_strategy import SpawnStrategySkill
 
 
 class AutonomousAgent:
@@ -195,6 +196,7 @@ class AutonomousAgent:
             MemorySkill,
             OrchestratorSkill,
             CryptoSkill,
+            SpawnStrategySkill,
         ]
 
         for skill_class in skill_classes:
@@ -245,6 +247,10 @@ class AutonomousAgent:
                         agent_name=self.name.lower().replace(" ", "_"),
                         dataset_prefix="singularity",
                     )
+
+                # Wire up spawn strategy skill with agent context
+                if skill_class == SpawnStrategySkill and skill:
+                    skill.set_parent_agent(agent=self)
 
                 # Wire up orchestrator skill with agent factory
                 if skill_class == OrchestratorSkill and skill:
