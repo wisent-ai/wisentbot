@@ -29,6 +29,7 @@ from .scheduler import SchedulerSkill
 from .strategy import StrategySkill
 from .goal_manager import GoalManagerSkill
 from .task_delegator import TaskDelegator
+from .knowledge_sharing import KnowledgeSharingSkill
 
 __all__ = [
     # Base
@@ -61,4 +62,5 @@ __all__ = [
     "StrategySkill",
     "GoalManagerSkill",
     "TaskDelegator",
+    "KnowledgeSharingSkill",
 ]
