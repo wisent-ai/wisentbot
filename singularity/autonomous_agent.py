@@ -64,6 +64,8 @@ from .skills.knowledge_sharing import KnowledgeSharingSkill
 from .skills.resource_watcher import ResourceWatcherSkill
 from .skills.revenue_services import RevenueServiceSkill
 from .skills.auto_catalog import AutoCatalogSkill
+from .skills.webhook import WebhookSkill
+from .skills.payment import PaymentSkill
 from .skills.usage_tracking import UsageTrackingSkill
 from .skills.skill_composer import SkillComposerSkill
 from .skills.agent_network import AgentNetworkSkill
@@ -135,10 +137,11 @@ class AutonomousAgent:
         ResourceWatcherSkill,
         RevenueServiceSkill,
         AutoCatalogSkill,
+        WebhookSkill,
+        PaymentSkill,
         UsageTrackingSkill,
         SkillComposerSkill,
-        AgentNetworkSkill,
-    ]
+        AgentNetworkSkill,    ]
 
     def __init__(
         self,
