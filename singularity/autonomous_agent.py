@@ -44,6 +44,7 @@ from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
+from .state_persistence import StatePersistence, extract_agent_state, restore_agent_state
 
 
 class AutonomousAgent:
@@ -90,6 +91,8 @@ class AutonomousAgent:
         openai_api_key: str = "",
         system_prompt: Optional[str] = None,
         system_prompt_file: Optional[str] = None,
+        persist_state: bool = True,
+        state_dir: str = "",
     ):
         """
         Initialize an autonomous agent.
@@ -158,6 +161,19 @@ class AutonomousAgent:
 
         # Steering skill reference (set during skill init)
         self._steering_skill = None
+
+        # State persistence - restore previous session if available
+        self.persist_state = persist_state
+        self._state_persistence = None
+        if persist_state:
+            self._state_persistence = StatePersistence(
+                state_dir=state_dir,
+                agent_name=name,
+            )
+            saved_state = self._state_persistence.load()
+            if saved_state:
+                restore_agent_state(self, saved_state)
+                self._log("RESTORE", f"Resumed from cycle {self.cycle}, balance ${self.balance:.4f}")
 
     def _init_skills(self):
         """Install skills that have credentials configured."""
@@ -355,11 +371,20 @@ class AutonomousAgent:
 
             self._log("COST", f"API: ${api_cost:.6f} + Instance: ${instance_cost:.6f} = ${total_cycle_cost:.6f}")
 
+            # Persist state after each cycle
+            if self._state_persistence and self._state_persistence.should_save():
+                self._state_persistence.save(extract_agent_state(self))
+
             await asyncio.sleep(self.cycle_interval)
 
         total_runtime_hours = (datetime.now() - cycle_start_time).total_seconds() / 3600
         self._log("END", f"Balance: ${self.balance:.4f}")
         self._log("SUMMARY", f"Ran {self.cycle} cycles in {total_runtime_hours:.2f}h | API: ${self.total_api_cost:.4f} | Tokens: {self.total_tokens_used}")
+        
+        # Final state save before stopping
+        if self._state_persistence:
+            self._state_persistence.save(extract_agent_state(self))
+        
         self._mark_stopped()
 
     def _track_created_resource(self, tool: str, params: Dict, result: Dict):
