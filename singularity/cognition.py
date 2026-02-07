@@ -289,6 +289,14 @@ class CognitionEngine:
         self._training_examples = []
         self._finetuned_model_id = None
 
+        # Token management — context window awareness
+        from singularity.token_manager import TokenManager
+        self.token_manager = TokenManager(model=llm_model)
+
+        # Cost-aware model selection — auto-switch models based on financial health
+        from singularity.model_selector import CostAwareModelSelector
+        self.model_selector = CostAwareModelSelector()
+
         # Auto-detect provider
         if llm_provider == "auto":
             if self.vertex_project and (HAS_VERTEX_CLAUDE or HAS_VERTEX_GEMINI):
@@ -422,6 +430,7 @@ class CognitionEngine:
                 self.llm = AsyncAnthropic(api_key=self._anthropic_api_key)
                 self.llm_type = "anthropic"
                 self.llm_model = new_model
+                self.token_manager.update_model(new_model)
                 return True
 
             elif new_model.startswith("gpt") or new_model.startswith("ft:"):
@@ -432,6 +441,7 @@ class CognitionEngine:
                     )
                     self.llm_type = "openai"
                     self.llm_model = new_model
+                    self.token_manager.update_model(new_model)
                     return True
 
             elif new_model.startswith("gemini") and self.vertex_project and HAS_VERTEX_GEMINI:
@@ -439,6 +449,7 @@ class CognitionEngine:
                 self.llm = "gemini"
                 self.llm_type = "vertex_gemini"
                 self.llm_model = new_model
+                self.token_manager.update_model(new_model)
                 return True
 
             print(f"[COGNITION] Model {new_model} not available")
@@ -559,9 +570,53 @@ class CognitionEngine:
             return False
         return self.switch_model(self._finetuned_model_id)
 
+    def _check_model_selection(self, state: AgentState) -> None:
+        """Check if we should switch models based on financial health.
+
+        Automatically downgrades to cheaper models when runway is short,
+        and upgrades back to better models when finances are healthy.
+        """
+        try:
+            # Determine available providers based on configured credentials
+            available = []
+            if HAS_ANTHROPIC and self._anthropic_api_key:
+                available.append("anthropic")
+            if HAS_OPENAI and (self._openai_api_key or self.llm_type == "openai"):
+                available.append("openai")
+            if self.vertex_project and (HAS_VERTEX_CLAUDE or HAS_VERTEX_GEMINI):
+                available.append("vertex")
+
+            if not available:
+                return
+
+            rec = self.model_selector.recommend(
+                balance=state.balance,
+                burn_rate=state.burn_rate,
+                runway_hours=state.runway_hours,
+                current_model=self.llm_model,
+                current_provider=self.llm_type,
+                available_providers=available,
+            )
+
+            if rec.should_switch:
+                print(f"[COGNITION] Cost-aware switch: {self.llm_model} -> {rec.model_id} ({rec.reason})")
+                if self.switch_model(rec.model_id):
+                    self.model_selector.apply(rec)
+                    print(f"[COGNITION] Switched to {rec.tier_name} (saves ~${rec.estimated_savings:.6f}/call)")
+                else:
+                    print(f"[COGNITION] Switch to {rec.model_id} failed, keeping {self.llm_model}")
+        except Exception as e:
+            print(f"[COGNITION] Model selection error (non-fatal): {e}")
+
     async def think(self, state: AgentState) -> Decision:
         """
         Given current state, decide what action to take.
+
+        Uses TokenManager for context window budgeting — automatically
+        truncates recent actions and project context to prevent overflow.
+
+        Uses CostAwareModelSelector to automatically switch to cheaper
+        models when runway is short, extending agent survival.
 
         Args:
             state: Current agent state including balance, tools, recent actions
@@ -569,6 +624,9 @@ class CognitionEngine:
         Returns:
             Decision with action to execute
         """
+        # Cost-aware model selection — may switch models before LLM call
+        self._check_model_selection(state)
+
         # Build the prompt
         system_prompt = self.get_system_prompt()
 
@@ -578,15 +636,8 @@ class CognitionEngine:
             for t in state.tools
         ])
 
-        # Format recent actions
-        recent_text = ""
-        if state.recent_actions:
-            recent_text = "\nRecent actions:\n" + "\n".join([
-                f"- {a['tool']}: {a.get('result', {}).get('status', 'unknown')}"
-                for a in state.recent_actions[-5:]
-            ])
-
-        user_prompt = f"""Current state:
+        # Build the fixed part of the user prompt (always included)
+        user_prompt_base = f"""Current state:
 - Balance: ${state.balance:.4f}
 - Burn rate: ${state.burn_rate:.6f}/cycle
 - Runway: {state.runway_hours:.1f} hours
@@ -594,11 +645,33 @@ class CognitionEngine:
 
 Available tools:
 {tools_text}
-{recent_text}
+"""
 
-{state.project_context}
+        # Compute token budget for variable-length content
+        budget = self.token_manager.compute_budget(system_prompt, user_prompt_base)
 
-What action should you take? Respond with JSON: {{"tool": "skill:action", "params": {{}}, "reasoning": "why"}}"""
+        # Allocate available budget: 40% for recent actions, 60% for project context
+        actions_budget = max(0, budget.available * 2 // 5)
+        context_budget = max(0, budget.available * 3 // 5)
+
+        # Fit recent actions within budget
+        recent_text = ""
+        if state.recent_actions:
+            fitted_actions = self.token_manager.fit_recent_actions(
+                state.recent_actions, actions_budget
+            )
+            if fitted_actions:
+                recent_text = "\nRecent actions:\n" + "\n".join([
+                    f"- {a['tool']}: {a.get('result', {}).get('status', 'unknown')}"
+                    for a in fitted_actions
+                ])
+
+        # Truncate project context if needed
+        project_context = self.token_manager.truncate_to_budget(
+            state.project_context, context_budget
+        )
+
+        user_prompt = user_prompt_base + recent_text + "\n\n" + project_context + "\n\nWhat action should you take? Respond with JSON: {\"tool\": \"skill:action\", \"params\": {}, \"reasoning\": \"why\"}"
 
         # Call LLM based on backend
         response_text = ""
@@ -699,6 +772,13 @@ What action should you take? Respond with JSON: {{"tool": "skill:action", "param
         # Parse response
         action = self._parse_action(response_text)
         api_cost = calculate_api_cost(self.llm_type, self.llm_model, token_usage)
+
+        # Record usage in token manager for session tracking
+        self.token_manager.record_usage(
+            token_usage.input_tokens,
+            token_usage.output_tokens,
+            api_cost,
+        )
 
         return Decision(
             action=action,
