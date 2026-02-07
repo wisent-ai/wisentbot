@@ -1,0 +1,516 @@
+{
+  "status": "stopped",
+  "logs": [
+    {
+      "timestamp": "2026-02-07T07:23:17.882355",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.882798",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.883239",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.883744",
+      "tag": "CYCLE",
+      "message": "#99983 | $0.0018 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.884709",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.885171",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.885623",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.886068",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.886533",
+      "tag": "CYCLE",
+      "message": "#99984 | $0.0017 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.887525",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.887974",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.888428",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.888877",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.889358",
+      "tag": "CYCLE",
+      "message": "#99985 | $0.0016 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.890384",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.890869",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.891321",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.891778",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.892245",
+      "tag": "CYCLE",
+      "message": "#99986 | $0.0015 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.893256",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.893708",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.894142",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.894583",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.895042",
+      "tag": "CYCLE",
+      "message": "#99987 | $0.0014 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.895982",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.896455",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.896923",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.897515",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.898031",
+      "tag": "CYCLE",
+      "message": "#99988 | $0.0013 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.899074",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.899523",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.899968",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.900420",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.900886",
+      "tag": "CYCLE",
+      "message": "#99989 | $0.0012 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.901909",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.902356",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.902805",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.903249",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.903717",
+      "tag": "CYCLE",
+      "message": "#99990 | $0.0011 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.904697",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.905153",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.905614",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.906095",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.906568",
+      "tag": "CYCLE",
+      "message": "#99991 | $0.0010 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.907541",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.907990",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.908451",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.908901",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.909359",
+      "tag": "CYCLE",
+      "message": "#99992 | $0.0009 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.910338",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.910779",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.911218",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.911656",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.912114",
+      "tag": "CYCLE",
+      "message": "#99993 | $0.0008 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.913085",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.913539",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.913989",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.914428",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.914958",
+      "tag": "CYCLE",
+      "message": "#99994 | $0.0007 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.916040",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.916516",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.916978",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.917426",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.917899",
+      "tag": "CYCLE",
+      "message": "#99995 | $0.0006 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.918969",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.919465",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.919957",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.920413",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.920893",
+      "tag": "CYCLE",
+      "message": "#99996 | $0.0005 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.921902",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.922345",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.922789",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.923266",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.923758",
+      "tag": "CYCLE",
+      "message": "#99997 | $0.0004 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.924770",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.925241",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.925683",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.926126",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.926582",
+      "tag": "CYCLE",
+      "message": "#99998 | $0.0003 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.927553",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.928040",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.928482",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.928935",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.929420",
+      "tag": "CYCLE",
+      "message": "#99999 | $0.0002 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.930425",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.930901",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.931344",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.931809",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.932297",
+      "tag": "CYCLE",
+      "message": "#100000 | $0.0001 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.933518",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.933964",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.934436",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.934876",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.935340",
+      "tag": "CYCLE",
+      "message": "#100001 | $0.0000 | ~0 cycles left"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.936287",
+      "tag": "THINK",
+      "message": "Found the answer"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.936726",
+      "tag": "DO",
+      "message": "agent:done {'summary': 'Task complete', 'result': '42'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.937166",
+      "tag": "RESULT",
+      "message": "{'status': 'error', 'message': 'Unknown tool: agent:done'}"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.937616",
+      "tag": "COST",
+      "message": "API: $0.000100 + Instance: $0.000000 = $0.000100"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.938213",
+      "tag": "END",
+      "message": "Balance: $-0.0001"
+    },
+    {
+      "timestamp": "2026-02-07T07:23:17.938745",
+      "tag": "SUMMARY",
+      "message": "Ran 100001 cycles in 0.09h | API: $10.0001 | Tokens: 1500015"
+    }
+  ],
+  "state": {
+    "name": "TestAgent",
+    "ticker": "TEST",
+    "agent_type": "general",
+    "balance_usd": -9.999999003319113e-05,
+    "total_api_cost": 10.000099999990033,
+    "total_tokens_used": 1500015,
+    "runway_cycles": -0.009999999003319113,
+    "cycle": 100001,
+    "updated_at": "2026-02-07T07:23:17.939268"
+  }
+}
