@@ -152,6 +152,7 @@ class AgentState:
     cycle: int = 0
     project_context: str = ""
     created_resources: Dict[str, Any] = field(default_factory=dict)
+    execution_stats: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -586,6 +587,23 @@ class CognitionEngine:
                 for a in state.recent_actions[-5:]
             ])
 
+        # Format execution stats
+        exec_stats_text = ""
+        if state.execution_stats:
+            stats = state.execution_stats
+            if stats.get("skill_stats"):
+                lines = []
+                for skill_id, s in stats["skill_stats"].items():
+                    rate = s["success_rate"]
+                    avg_time = s["avg_time_ms"]
+                    status = "FAILING" if rate < 0.5 and s["total"] >= 3 else "OK" if rate >= 0.8 else "UNSTABLE"
+                    lines.append(f"  [{status}] {skill_id}: {s['successes']}/{s['total']} ok ({rate:.0%}), avg {avg_time:.0f}ms")
+                if lines:
+                    exec_stats_text = "\n\nExecution stats:\n" + "\n".join(lines)
+            warnings = stats.get("warnings", [])
+            if warnings:
+                exec_stats_text += "\n\nWarnings:\n" + "\n".join(f"  - {w}" for w in warnings)
+
         user_prompt = f"""Current state:
 - Balance: ${state.balance:.4f}
 - Burn rate: ${state.burn_rate:.6f}/cycle
@@ -594,7 +612,7 @@ class CognitionEngine:
 
 Available tools:
 {tools_text}
-{recent_text}
+{recent_text}{exec_stats_text}
 
 {state.project_context}
 

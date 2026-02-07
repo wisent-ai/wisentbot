@@ -159,6 +159,9 @@ class AutonomousAgent:
         # Steering skill reference (set during skill init)
         self._steering_skill = None
 
+        # Execution statistics per skill
+        self._exec_stats: Dict[str, Dict] = {}
+
     def _init_skills(self):
         """Install skills that have credentials configured."""
         credentials = {
@@ -316,6 +319,7 @@ class AutonomousAgent:
                 recent_actions=self.recent_actions[-10:],
                 cycle=self.cycle,
                 created_resources=self.created_resources,
+                execution_stats=self._get_execution_stats(),
             )
 
             decision = await self.cognition.think(state)
@@ -376,8 +380,65 @@ class AutonomousAgent:
             })
             self.created_resources['files'] = self.created_resources['files'][-20:]
 
+    def _get_execution_stats(self) -> Dict:
+        """Build execution statistics summary for agent state."""
+        if not self._exec_stats:
+            return {}
+
+        skill_stats = {}
+        warnings = []
+
+        for skill_id, stats in self._exec_stats.items():
+            total = stats["successes"] + stats["failures"]
+            if total == 0:
+                continue
+            rate = stats["successes"] / total
+            avg_time = stats["total_time_ms"] / total if total > 0 else 0
+
+            skill_stats[skill_id] = {
+                "successes": stats["successes"],
+                "failures": stats["failures"],
+                "total": total,
+                "success_rate": rate,
+                "avg_time_ms": avg_time,
+                "consecutive_failures": stats["consecutive_failures"],
+            }
+
+            if stats["consecutive_failures"] >= 3:
+                warnings.append(
+                    f"{skill_id} has failed {stats['consecutive_failures']} times in a row. "
+                    f"Consider trying a different approach or tool."
+                )
+            elif rate < 0.5 and total >= 3:
+                warnings.append(
+                    f"{skill_id} has a low success rate ({rate:.0%}). "
+                    f"Check parameters or try alternative tools."
+                )
+
+        return {"skill_stats": skill_stats, "warnings": warnings}
+
+    def _record_execution(self, skill_id: str, success: bool, duration_ms: float):
+        """Record execution result for a skill."""
+        if skill_id not in self._exec_stats:
+            self._exec_stats[skill_id] = {
+                "successes": 0,
+                "failures": 0,
+                "total_time_ms": 0.0,
+                "consecutive_failures": 0,
+            }
+
+        stats = self._exec_stats[skill_id]
+        stats["total_time_ms"] += duration_ms
+
+        if success:
+            stats["successes"] += 1
+            stats["consecutive_failures"] = 0
+        else:
+            stats["failures"] += 1
+            stats["consecutive_failures"] += 1
+
     async def _execute(self, action: Action) -> Dict:
-        """Execute an action via skills."""
+        """Execute an action via skills with timing and stats tracking."""
         tool = action.tool
         params = action.params
 
@@ -392,14 +453,20 @@ class AutonomousAgent:
 
             skill = self.skills.get(skill_id)
             if skill:
+                start_time = __import__("datetime").datetime.now()
                 try:
                     result = await skill.execute(action_name, params)
+                    duration_ms = (__import__("datetime").datetime.now() - start_time).total_seconds() * 1000
+                    success = result.success
+                    self._record_execution(skill_id, success, duration_ms)
                     return {
-                        "status": "success" if result.success else "failed",
+                        "status": "success" if success else "failed",
                         "data": result.data,
                         "message": result.message
                     }
                 except Exception as e:
+                    duration_ms = (__import__("datetime").datetime.now() - start_time).total_seconds() * 1000
+                    self._record_execution(skill_id, False, duration_ms)
                     return {"status": "error", "message": str(e)}
 
         return {"status": "error", "message": f"Unknown tool: {tool}"}
