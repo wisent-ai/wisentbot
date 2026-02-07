@@ -25,6 +25,7 @@ from .crypto import CryptoSkill
 from .experiment import ExperimentSkill
 from .event import EventSkill
 from .planner import PlannerSkill
+from .outcome_tracker import OutcomeTracker
 
 __all__ = [
     # Base
@@ -53,4 +54,5 @@ __all__ = [
     "ExperimentSkill",
     "EventSkill",
     "PlannerSkill",
+    "OutcomeTracker",
 ]
