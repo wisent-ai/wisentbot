@@ -572,11 +572,9 @@ class CognitionEngine:
         # Build the prompt
         system_prompt = self.get_system_prompt()
 
-        # Format tools
-        tools_text = "\n".join([
-            f"- {t['name']}: {t['description']}"
-            for t in state.tools
-        ])
+        # Format tools with parameter details
+        from .tool_calling import format_tools_for_text_prompt
+        tools_text = format_tools_for_text_prompt(state.tools)
 
         # Format recent actions
         recent_text = ""
@@ -605,17 +603,44 @@ What action should you take? Respond with JSON: {{"tool": "skill:action", "param
         token_usage = TokenUsage()
 
         if self.llm_type == "anthropic":
-            response = await self.llm.messages.create(
+            from .tool_calling import tools_to_anthropic_format, parse_anthropic_tool_use
+            anthropic_tools = tools_to_anthropic_format(state.tools)
+
+            create_kwargs = dict(
                 model=self.llm_model,
                 max_tokens=500,
                 system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}]
+                messages=[{"role": "user", "content": user_prompt}],
             )
-            response_text = response.content[0].text
+            if anthropic_tools:
+                create_kwargs["tools"] = anthropic_tools
+
+            response = await self.llm.messages.create(**create_kwargs)
             token_usage = TokenUsage(
                 input_tokens=response.usage.input_tokens,
                 output_tokens=response.usage.output_tokens
             )
+
+            # Try native tool_use parsing first
+            if response.stop_reason == "tool_use" or any(
+                getattr(b, "type", None) == "tool_use" for b in response.content
+            ):
+                tool_action = parse_anthropic_tool_use(response, state.tools)
+                if tool_action:
+                    api_cost = calculate_api_cost(self.llm_type, self.llm_model, token_usage)
+                    return Decision(
+                        action=tool_action,
+                        reasoning=tool_action.reasoning,
+                        token_usage=token_usage,
+                        api_cost_usd=api_cost,
+                    )
+
+            # Fall back to text parsing
+            response_text = ""
+            for block in response.content:
+                if getattr(block, "type", None) == "text":
+                    response_text = block.text
+                    break
 
         elif self.llm_type == "vertex":
             response = self.llm.messages.create(
@@ -645,20 +670,42 @@ What action should you take? Respond with JSON: {{"tool": "skill:action", "param
                 )
 
         elif self.llm_type == "openai":
-            response = await self.llm.chat.completions.create(
+            from .tool_calling import tools_to_openai_format, parse_openai_tool_call
+            openai_tools = tools_to_openai_format(state.tools)
+
+            create_kwargs = dict(
                 model=self.llm_model,
                 max_tokens=500,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ]
+                    {"role": "user", "content": user_prompt},
+                ],
             )
-            response_text = response.choices[0].message.content
+            if openai_tools:
+                create_kwargs["tools"] = openai_tools
+
+            response = await self.llm.chat.completions.create(**create_kwargs)
             if response.usage:
                 token_usage = TokenUsage(
                     input_tokens=response.usage.prompt_tokens,
-                    output_tokens=response.usage.completion_tokens
+                    output_tokens=response.usage.completion_tokens,
                 )
+
+            # Try native tool call parsing first
+            message = response.choices[0].message
+            if message.tool_calls:
+                tool_action = parse_openai_tool_call(response, state.tools)
+                if tool_action:
+                    api_cost = calculate_api_cost(self.llm_type, self.llm_model, token_usage)
+                    return Decision(
+                        action=tool_action,
+                        reasoning=tool_action.reasoning,
+                        token_usage=token_usage,
+                        api_cost_usd=api_cost,
+                    )
+
+            # Fall back to text parsing
+            response_text = message.content or ""
 
         elif self.llm_type == "vllm":
             full_prompt = f"{system_prompt}\n\nUser: {user_prompt}\n\nAssistant:"
