@@ -52,6 +52,7 @@ from .skills.planner import PlannerSkill
 from .skills.scheduler import SchedulerSkill
 from .skills.strategy import StrategySkill
 from .skills.replication import ReplicationSkill
+from .skills.performance import PerformanceTracker
 from .event_bus import EventBus, Event, EventPriority
 
 
@@ -107,6 +108,7 @@ class AutonomousAgent:
         SchedulerSkill,
         StrategySkill,
         ReplicationSkill,
+        PerformanceTracker,
     ]
 
     def __init__(
@@ -227,6 +229,8 @@ class AutonomousAgent:
         # Steering skill reference (set during skill init)
         self._steering_skill = None
 
+        # Performance tracker reference (set during skill init)
+        self._performance_tracker = None
         # Tool resolver for fuzzy matching (lazy-initialized)
         self._tool_resolver = None
 
@@ -308,6 +312,10 @@ class AutonomousAgent:
                 # Wire up replication skill with agent reference
                 if skill_class == ReplicationSkill and skill:
                     skill.set_agent(self)
+
+                # Store reference to performance tracker for auto-recording
+                if skill_class == PerformanceTracker and skill:
+                    self._performance_tracker = skill
 
                 if skill and skill.check_credentials():
                     self._log("SKILL", f"+ {skill.manifest.name}")
@@ -468,6 +476,11 @@ class AutonomousAgent:
             if pending_events:
                 self._log("EVENTS", f"{len(pending_events)} pending event(s)")
 
+            # Get performance context for LLM awareness
+            perf_context = ''
+            if self._performance_tracker:
+                perf_context = self._performance_tracker.get_context_summary()
+
             state = AgentState(
                 balance=self.balance,
                 burn_rate=est_cost_per_cycle,
@@ -478,6 +491,7 @@ class AutonomousAgent:
                 created_resources=self.created_resources,
                 project_context=self.project_context,
                 pending_events=pending_events,
+                performance_context=perf_context,
             )
 
             self.metrics.start_timer("decision")
@@ -510,6 +524,23 @@ class AutonomousAgent:
 
             # Track created resources
             self._track_created_resource(decision.action.tool, decision.action.params, result)
+
+            # Auto-record performance for cross-session analytics
+            if self._performance_tracker:
+                skill_id, action_name = '', ''
+                if ':' in decision.action.tool:
+                    parts = decision.action.tool.split(':', 1)
+                    skill_id, action_name = parts[0], parts[1]
+                else:
+                    skill_id = decision.action.tool
+                self._performance_tracker.record_outcome(
+                    skill_id=skill_id,
+                    action=action_name,
+                    success=exec_success,
+                    latency_ms=exec_time * 1000,
+                    cost_usd=decision.api_cost_usd,
+                    error=str(result.get('message', ''))[:200] if not exec_success else '',
+                )
 
             # Record action
             self.recent_actions.append({
