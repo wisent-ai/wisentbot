@@ -477,6 +477,48 @@ class AutonomousAgent:
         """Stop the agent gracefully."""
         self.running = False
 
+    async def execute_task(
+        self,
+        task: str,
+        max_cycles: int = 50,
+        budget: Optional[float] = None,
+    ) -> Dict:
+        """
+        Execute a discrete task and return the result.
+
+        Instead of running forever, this executes a specific task using
+        the agent's existing skills and cognition, then returns when done.
+
+        Args:
+            task: Natural language description of what to do
+            max_cycles: Maximum think-act cycles (default: 50)
+            budget: Max USD to spend (default: agent's current balance)
+
+        Returns:
+            Dict with task status, result summary, cost, etc.
+        """
+        from .task_runner import TaskRunner, TaskResult
+
+        runner = TaskRunner(
+            name=self.name,
+            llm_provider=self.cognition.llm_type,
+            llm_model=self.cognition.llm_model,
+            anthropic_api_key=self.cognition._anthropic_api_key,
+            openai_api_key=self.cognition._openai_api_key,
+            llm_base_url=self.cognition._openai_base_url,
+            budget=budget if budget is not None else self.balance,
+            max_cycles=max_cycles,
+            skills=self.skills,
+        )
+        result = await runner.run(task)
+
+        # Deduct cost from agent balance
+        self.balance -= result.total_cost
+        self.total_api_cost += result.total_cost
+        self.total_tokens_used += result.total_tokens
+
+        return result.to_dict()
+
 
 async def main():
     """Example usage."""
