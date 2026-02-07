@@ -44,6 +44,7 @@ from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
+from .skills.local_memory import LocalMemorySkill
 
 
 class AutonomousAgent:
@@ -195,6 +196,7 @@ class AutonomousAgent:
             MemorySkill,
             OrchestratorSkill,
             CryptoSkill,
+            LocalMemorySkill,
         ]
 
         for skill_class in skill_classes:
@@ -244,6 +246,12 @@ class AutonomousAgent:
                     skill.set_agent_context(
                         agent_name=self.name.lower().replace(" ", "_"),
                         dataset_prefix="singularity",
+                    )
+
+                # Wire up local memory skill with agent context
+                if skill_class == LocalMemorySkill and skill:
+                    skill.set_agent_context(
+                        agent_name=self.name.lower().replace(" ", "_"),
                     )
 
                 # Wire up orchestrator skill with agent factory
