@@ -159,6 +159,88 @@ class AutonomousAgent:
         # Steering skill reference (set during skill init)
         self._steering_skill = None
 
+        # Goal-directed behavior: persistent goals that guide every LLM decision
+        self._goals_file = Path(__file__).parent / "data" / f"goals_{self.name.lower().replace(' ', '_')}.json"
+        self.goals: List[Dict] = self._load_goals()
+
+    def _load_goals(self) -> List[Dict]:
+        """Load goals from persistent storage."""
+        try:
+            if self._goals_file.exists():
+                with open(self._goals_file, 'r') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return []
+
+    def _save_goals(self):
+        """Save goals to persistent storage."""
+        try:
+            self._goals_file.parent.mkdir(parents=True, exist_ok=True)
+            with open(self._goals_file, 'w') as f:
+                json.dump(self.goals, f, indent=2)
+        except Exception:
+            pass
+
+    def add_goal(self, description: str, priority: str = "medium") -> Dict:
+        """Add a new goal. Priority: critical, high, medium, low."""
+        goal = {
+            "id": len(self.goals) + 1,
+            "description": description,
+            "priority": priority,
+            "status": "active",
+            "created_at": datetime.now().isoformat(),
+            "completed_at": None,
+            "progress_notes": [],
+        }
+        self.goals.append(goal)
+        self._save_goals()
+        return goal
+
+    def complete_goal(self, goal_id: int, note: str = "") -> Optional[Dict]:
+        """Mark a goal as completed."""
+        for g in self.goals:
+            if g["id"] == goal_id:
+                g["status"] = "completed"
+                g["completed_at"] = datetime.now().isoformat()
+                if note:
+                    g["progress_notes"].append({"note": note, "at": datetime.now().isoformat()})
+                self._save_goals()
+                return g
+        return None
+
+    def update_goal_progress(self, goal_id: int, note: str) -> Optional[Dict]:
+        """Add a progress note to a goal."""
+        for g in self.goals:
+            if g["id"] == goal_id:
+                g["progress_notes"].append({"note": note, "at": datetime.now().isoformat()})
+                self._save_goals()
+                return g
+        return None
+
+    def get_active_goals(self) -> List[Dict]:
+        """Get all active (non-completed) goals."""
+        return [g for g in self.goals if g["status"] == "active"]
+
+    def _format_goals_context(self) -> str:
+        """Format active goals as context for the LLM prompt."""
+        active = self.get_active_goals()
+        if not active:
+            return ""
+        priority_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+        active.sort(key=lambda g: priority_order.get(g["priority"], 2))
+        lines = ["Active Goals (guide your decisions):"]
+        for g in active:
+            notes = ""
+            if g["progress_notes"]:
+                latest = g["progress_notes"][-1]["note"]
+                notes = f" (latest: {latest[:80]})"
+            lines.append(f"  [{g['priority'].upper()}] #{g['id']}: {g['description']}{notes}")
+        completed = [g for g in self.goals if g["status"] == "completed"]
+        if completed:
+            lines.append(f"  ({len(completed)} goals completed so far)")
+        return "\n".join(lines)
+
     def _init_skills(self):
         """Install skills that have credentials configured."""
         credentials = {
@@ -273,6 +355,28 @@ class AutonomousAgent:
                     "parameters": action.parameters
                 })
 
+        # Built-in goal management tools
+        tools.append({
+            "name": "agent:set_goal",
+            "description": "Set a new goal to guide future decisions. Goals persist across restarts.",
+            "parameters": {"description": "str: what to achieve", "priority": "str: critical|high|medium|low (default: medium)"}
+        })
+        tools.append({
+            "name": "agent:complete_goal",
+            "description": "Mark a goal as completed.",
+            "parameters": {"goal_id": "int: ID of the goal to complete", "note": "str: optional completion note"}
+        })
+        tools.append({
+            "name": "agent:update_goal",
+            "description": "Add a progress note to a goal.",
+            "parameters": {"goal_id": "int: ID of the goal", "note": "str: progress update"}
+        })
+        tools.append({
+            "name": "agent:list_goals",
+            "description": "List all goals with their status and progress.",
+            "parameters": {}
+        })
+
         if not tools:
             tools.append({
                 "name": "wait",
@@ -307,7 +411,8 @@ class AutonomousAgent:
 
             self._log("CYCLE", f"#{self.cycle} | ${self.balance:.4f} | ~{runway_cycles:.0f} cycles left")
 
-            # Think
+            # Think - include goals context in project_context
+            goals_context = self._format_goals_context()
             state = AgentState(
                 balance=self.balance,
                 burn_rate=est_cost_per_cycle,
@@ -316,6 +421,7 @@ class AutonomousAgent:
                 recent_actions=self.recent_actions[-10:],
                 cycle=self.cycle,
                 created_resources=self.created_resources,
+                project_context=goals_context,
             )
 
             decision = await self.cognition.think(state)
@@ -383,6 +489,44 @@ class AutonomousAgent:
 
         if tool == "wait":
             return {"status": "waited"}
+
+        # Built-in goal management
+        if tool == "agent:set_goal":
+            goal = self.add_goal(
+                description=params.get("description", ""),
+                priority=params.get("priority", "medium"),
+            )
+            return {"status": "success", "data": goal, "message": f"Goal #{goal['id']} created"}
+
+        if tool == "agent:complete_goal":
+            goal = self.complete_goal(
+                goal_id=int(params.get("goal_id", 0)),
+                note=params.get("note", ""),
+            )
+            if goal:
+                return {"status": "success", "data": goal, "message": f"Goal #{goal['id']} completed"}
+            return {"status": "error", "message": "Goal not found"}
+
+        if tool == "agent:update_goal":
+            goal = self.update_goal_progress(
+                goal_id=int(params.get("goal_id", 0)),
+                note=params.get("note", ""),
+            )
+            if goal:
+                return {"status": "success", "data": goal, "message": f"Goal #{goal['id']} updated"}
+            return {"status": "error", "message": "Goal not found"}
+
+        if tool == "agent:list_goals":
+            return {
+                "status": "success",
+                "data": {
+                    "active": self.get_active_goals(),
+                    "all": self.goals,
+                    "total": len(self.goals),
+                    "completed": len([g for g in self.goals if g["status"] == "completed"]),
+                },
+                "message": f"{len(self.get_active_goals())} active goals"
+            }
 
         # Parse skill:action format
         if ":" in tool:
