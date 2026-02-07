@@ -27,6 +27,7 @@ from typing import Dict, List, Optional, Type
 ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
+from .runtime_metrics import RuntimeMetrics
 from .skills.base import SkillRegistry
 from .tool_resolver import ToolResolver
 from .skills.content import ContentCreationSkill
@@ -191,6 +192,9 @@ class AutonomousAgent:
         self.recent_actions: List[Dict] = []
         self.cycle = 0
         self.running = False
+
+        # Runtime metrics
+        self.metrics = RuntimeMetrics()
 
         # Track created resources
         self.created_resources: Dict[str, List] = {
@@ -398,12 +402,23 @@ class AutonomousAgent:
                 project_context=self.project_context,
             )
 
+            self.metrics.start_timer("decision")
             decision = await self.cognition.think(state)
+            decision_time = self.metrics.stop_timer("decision") or 0.0
+            self.metrics.record_decision(
+                latency=decision_time,
+                tokens=decision.token_usage.total_tokens(),
+                api_cost=decision.api_cost_usd,
+            )
             self._log("THINK", decision.reasoning[:150] if decision.reasoning else "...")
             self._log("DO", f"{decision.action.tool} {decision.action.params}")
 
             # Execute
+            self.metrics.start_timer("execution")
             result = await self._execute(decision.action)
+            exec_time = self.metrics.stop_timer("execution") or 0.0
+            exec_success = result.get("status") == "success"
+            self.metrics.record_execution(decision.action.tool, exec_time, exec_success)
             self._log("RESULT", str(result)[:200])
 
             # Track created resources
@@ -440,6 +455,11 @@ class AutonomousAgent:
         total_runtime_hours = (datetime.now() - cycle_start_time).total_seconds() / 3600
         self._log("END", f"Balance: ${self.balance:.4f}")
         self._log("SUMMARY", f"Ran {self.cycle} cycles in {total_runtime_hours:.2f}h | API: ${self.total_api_cost:.4f} | Tokens: {self.total_tokens_used}")
+        metrics_summary = self.metrics.summary()
+        self._log("METRICS", f"Success rate: {metrics_summary['success_rate']:.1%} | "
+                  f"Avg decision: {metrics_summary['avg_decision_latency_s']:.2f}s | "
+                  f"Avg execution: {metrics_summary['avg_execution_latency_s']:.2f}s | "
+                  f"Throughput: {metrics_summary['cycles_per_minute']:.1f} cycles/min")
         self._mark_stopped()
 
     def _track_created_resource(self, tool: str, params: Dict, result: Dict):
