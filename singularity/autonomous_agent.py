@@ -70,6 +70,12 @@ from .skills.usage_tracking import UsageTrackingSkill
 from .skills.skill_composer import SkillComposerSkill
 from .skills.agent_network import AgentNetworkSkill
 from .skills.context_synthesis import ContextSynthesisSkill
+from .skills.secret_vault import SecretVaultSkill
+
+
+
+
+
 from .adaptive_executor import AdaptiveExecutor
 from .event_bus import EventBus, Event, EventPriority
 
@@ -143,7 +149,15 @@ class AutonomousAgent:
         UsageTrackingSkill,
         SkillComposerSkill,
         AgentNetworkSkill,
-        ContextSynthesisSkill,    ]
+        ContextSynthesisSkill,
+        SecretVaultSkill,
+    ]
+
+
+
+
+
+
 
     def __init__(
         self,
