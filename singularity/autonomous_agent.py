@@ -59,6 +59,7 @@ from .skills.goal_manager import GoalManagerSkill
 from .skills.marketplace import MarketplaceSkill
 from .skills.feedback_loop import FeedbackLoopSkill
 from .skills.task_delegator import TaskDelegator
+from .skills.knowledge_sharing import KnowledgeSharingSkill
 from .adaptive_executor import AdaptiveExecutor
 from .event_bus import EventBus, Event, EventPriority
 
@@ -122,6 +123,7 @@ class AutonomousAgent:
         MarketplaceSkill,
         FeedbackLoopSkill,
         TaskDelegator,
+        KnowledgeSharingSkill,
     ]
 
     def __init__(
@@ -334,6 +336,10 @@ class AutonomousAgent:
                         append_prompt=self.cognition.append_to_prompt,
                         get_prompt=self.cognition.get_system_prompt,
                     )
+
+                # Wire up knowledge sharing skill with agent identity
+                if skill_class == KnowledgeSharingSkill and skill:
+                    skill.set_agent_id(f"{self.name}_{self.ticker}")
 
                 # Store reference to performance tracker for auto-recording
                 if skill_class == PerformanceTracker and skill:
