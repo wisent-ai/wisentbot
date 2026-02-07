@@ -50,6 +50,7 @@ from .skills.experiment import ExperimentSkill
 from .skills.event import EventSkill
 from .skills.planner import PlannerSkill
 from .skills.scheduler import SchedulerSkill
+from .skills.strategy import StrategySkill
 from .event_bus import EventBus, Event, EventPriority
 
 
@@ -103,6 +104,7 @@ class AutonomousAgent:
         EventSkill,
         PlannerSkill,
         SchedulerSkill,
+        StrategySkill,
     ]
 
     def __init__(
