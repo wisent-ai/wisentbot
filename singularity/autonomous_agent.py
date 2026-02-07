@@ -49,6 +49,7 @@ from .skills.crypto import CryptoSkill
 from .skills.experiment import ExperimentSkill
 from .skills.event import EventSkill
 from .skills.planner import PlannerSkill
+from .skills.scheduler import SchedulerSkill
 from .event_bus import EventBus, Event, EventPriority
 
 
@@ -101,6 +102,7 @@ class AutonomousAgent:
         ExperimentSkill,
         EventSkill,
         PlannerSkill,
+        SchedulerSkill,
     ]
 
     def __init__(
@@ -318,6 +320,18 @@ class AutonomousAgent:
                 self._log("EVENT", "EventBus wired into EventSkill")
                 break
 
+
+    async def _tick_scheduler(self):
+        """Execute any due scheduled tasks."""
+        for skill in self.skills.skills.values():
+            if isinstance(skill, SchedulerSkill):
+                due_count = skill.get_due_count()
+                if due_count > 0:
+                    self._log("SCHED", f"{due_count} scheduled task(s) due")
+                    results = await skill.tick()
+                    for result in results:
+                        self._log("SCHED", f"{'OK' if result.success else 'FAIL'}: {result.message[:100]}")
+                break
     async def _emit_event(self, topic: str, data: Dict = None, priority: EventPriority = EventPriority.NORMAL):
         """Emit an event from the agent core."""
         event = Event(
@@ -440,6 +454,9 @@ class AutonomousAgent:
             # Think
             # Check for pending events from subscriptions
             pending_events = self._get_pending_events()
+
+            # Tick scheduler - execute any due scheduled tasks
+            await self._tick_scheduler()
             if pending_events:
                 self._log("EVENTS", f"{len(pending_events)} pending event(s)")
 
@@ -704,3 +721,4 @@ def entry_point():
 
 if __name__ == "__main__":
     entry_point()
+
