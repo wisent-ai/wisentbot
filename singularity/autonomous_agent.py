@@ -90,6 +90,8 @@ class AutonomousAgent:
         openai_api_key: str = "",
         system_prompt: Optional[str] = None,
         system_prompt_file: Optional[str] = None,
+        action_timeout: float = 120.0,
+        max_consecutive_errors: int = 5,
     ):
         """
         Initialize an autonomous agent.
@@ -109,6 +111,8 @@ class AutonomousAgent:
             openai_api_key: OpenAI API key
             system_prompt: Custom system prompt
             system_prompt_file: Path to file containing system prompt
+            action_timeout: Max seconds to wait for a skill action (default: 120)
+            max_consecutive_errors: Number of errors before safety warning (default: 5)
         """
         self.name = name
         self.ticker = ticker
@@ -118,11 +122,18 @@ class AutonomousAgent:
         self.instance_type = instance_type
         self.cycle_interval = cycle_interval_seconds
         self.instance_cost_per_hour = self.INSTANCE_COSTS.get(instance_type, 0.0)
+        self.action_timeout = action_timeout
+        self.max_consecutive_errors = max_consecutive_errors
 
         # Cost tracking
         self.total_api_cost = 0.0
         self.total_instance_cost = 0.0
         self.total_tokens_used = 0
+
+        # Execution safety tracking
+        self._consecutive_errors = 0
+        self._error_streak_tools: List[str] = []
+        self._action_timings: List[Dict] = []
 
         # Initialize cognition engine
         self.cognition = CognitionEngine(
@@ -307,6 +318,15 @@ class AutonomousAgent:
 
             self._log("CYCLE", f"#{self.cycle} | ${self.balance:.4f} | ~{runway_cycles:.0f} cycles left")
 
+            # Build project context with safety warnings
+            safety_context = ""
+            if self._consecutive_errors >= 3:
+                safety_context += (
+                    f"\n⚠️ WARNING: {self._consecutive_errors} consecutive errors! "
+                    f"Recent failing tools: {self._error_streak_tools[-5:]}. "
+                    f"Try a completely different approach.\n"
+                )
+
             # Think
             state = AgentState(
                 balance=self.balance,
@@ -316,6 +336,7 @@ class AutonomousAgent:
                 recent_actions=self.recent_actions[-10:],
                 cycle=self.cycle,
                 created_resources=self.created_resources,
+                project_context=safety_context,
             )
 
             decision = await self.cognition.think(state)
@@ -376,13 +397,42 @@ class AutonomousAgent:
             })
             self.created_resources['files'] = self.created_resources['files'][-20:]
 
+    def _detect_duplicate_action(self, tool: str, params: Dict) -> Optional[str]:
+        """Check if this action was recently executed with the same params.
+
+        Returns a warning message if duplicate detected, None otherwise.
+        """
+        for prev in self.recent_actions[-3:]:
+            if prev.get("tool") == tool and prev.get("params") == params:
+                prev_status = prev.get("result", {}).get("status", "unknown")
+                if prev_status in ("error", "failed"):
+                    return (
+                        f"WARNING: This exact action ({tool}) was attempted in cycle "
+                        f"{prev.get('cycle')} and {prev_status}. "
+                        f"Previous error: {prev.get('result', {}).get('message', 'unknown')}. "
+                        f"Consider a different approach."
+                    )
+                elif prev_status == "success":
+                    return (
+                        f"NOTE: This exact action ({tool}) already succeeded in cycle "
+                        f"{prev.get('cycle')}. Re-executing."
+                    )
+        return None
+
     async def _execute(self, action: Action) -> Dict:
-        """Execute an action via skills."""
+        """Execute an action via skills with timeout and safety checks."""
         tool = action.tool
         params = action.params
+        start_time = datetime.now()
 
         if tool == "wait":
+            self._consecutive_errors = 0
             return {"status": "waited"}
+
+        # Duplicate detection
+        dup_warning = self._detect_duplicate_action(tool, params)
+        if dup_warning:
+            self._log("WARN", dup_warning)
 
         # Parse skill:action format
         if ":" in tool:
@@ -393,16 +443,89 @@ class AutonomousAgent:
             skill = self.skills.get(skill_id)
             if skill:
                 try:
-                    result = await skill.execute(action_name, params)
+                    result = await asyncio.wait_for(
+                        skill.execute(action_name, params),
+                        timeout=self.action_timeout,
+                    )
+                    elapsed = (datetime.now() - start_time).total_seconds()
+                    self._track_timing(tool, elapsed, result.success)
+
+                    if result.success:
+                        self._consecutive_errors = 0
+                    else:
+                        self._record_error(tool)
+
                     return {
                         "status": "success" if result.success else "failed",
                         "data": result.data,
-                        "message": result.message
+                        "message": result.message,
+                        "elapsed_seconds": round(elapsed, 2),
+                    }
+                except asyncio.TimeoutError:
+                    elapsed = self.action_timeout
+                    self._track_timing(tool, elapsed, False)
+                    self._record_error(tool)
+                    return {
+                        "status": "error",
+                        "message": (
+                            f"Action '{tool}' timed out after {self.action_timeout}s. "
+                            f"Consider using a simpler action or breaking this into steps."
+                        ),
+                        "elapsed_seconds": round(elapsed, 2),
                     }
                 except Exception as e:
-                    return {"status": "error", "message": str(e)}
+                    elapsed = (datetime.now() - start_time).total_seconds()
+                    self._track_timing(tool, elapsed, False)
+                    self._record_error(tool)
+                    error_type = type(e).__name__
+                    return {
+                        "status": "error",
+                        "message": f"{error_type}: {e}",
+                        "tool": tool,
+                        "elapsed_seconds": round(elapsed, 2),
+                    }
+            else:
+                available = list(self.skills.skills.keys())
+                self._record_error(tool)
+                return {
+                    "status": "error",
+                    "message": (
+                        f"Unknown skill '{skill_id}'. "
+                        f"Available skills: {', '.join(available)}"
+                    ),
+                }
 
-        return {"status": "error", "message": f"Unknown tool: {tool}"}
+        self._record_error(tool)
+        available = list(self.skills.skills.keys())
+        return {
+            "status": "error",
+            "message": (
+                f"Invalid tool format '{tool}'. Use 'skill:action' format. "
+                f"Available skills: {', '.join(available)}"
+            ),
+        }
+
+    def _record_error(self, tool: str):
+        """Track consecutive errors for safety monitoring."""
+        self._consecutive_errors += 1
+        self._error_streak_tools.append(tool)
+        if self._consecutive_errors >= self.max_consecutive_errors:
+            self._log(
+                "SAFETY",
+                f"Hit {self._consecutive_errors} consecutive errors. "
+                f"Tools: {self._error_streak_tools[-self.max_consecutive_errors:]}",
+            )
+
+    def _track_timing(self, tool: str, elapsed: float, success: bool):
+        """Track action execution timing for performance awareness."""
+        self._action_timings.append({
+            "tool": tool,
+            "elapsed": elapsed,
+            "success": success,
+            "cycle": self.cycle,
+        })
+        # Keep last 50 timings
+        self._action_timings = self._action_timings[-50:]
 
     def _kill_for_tampering(self):
         """
