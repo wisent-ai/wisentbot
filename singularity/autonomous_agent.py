@@ -44,6 +44,7 @@ from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
+from .retry_executor import RetryExecutor
 
 
 class AutonomousAgent:
@@ -142,6 +143,9 @@ class AutonomousAgent:
         # Skills registry
         self.skills = SkillRegistry()
         self._init_skills()
+
+        # Retry executor for smart execution
+        self.executor = RetryExecutor(self.skills)
 
         # State
         self.recent_actions: List[Dict] = []
@@ -308,6 +312,9 @@ class AutonomousAgent:
             self._log("CYCLE", f"#{self.cycle} | ${self.balance:.4f} | ~{runway_cycles:.0f} cycles left")
 
             # Think
+            # Build context with skill health warnings
+            health_summary = self.executor.get_health_summary()
+
             state = AgentState(
                 balance=self.balance,
                 burn_rate=est_cost_per_cycle,
@@ -316,14 +323,15 @@ class AutonomousAgent:
                 recent_actions=self.recent_actions[-10:],
                 cycle=self.cycle,
                 created_resources=self.created_resources,
+                project_context=health_summary,
             )
 
             decision = await self.cognition.think(state)
             self._log("THINK", decision.reasoning[:150] if decision.reasoning else "...")
             self._log("DO", f"{decision.action.tool} {decision.action.params}")
 
-            # Execute
-            result = await self._execute(decision.action)
+            # Execute (with retry and circuit breaking)
+            result = await self.executor.execute(decision.action.tool, decision.action.params)
             self._log("RESULT", str(result)[:200])
 
             # Track created resources
