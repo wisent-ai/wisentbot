@@ -23,11 +23,34 @@ from dotenv import load_dotenv
 load_dotenv()
 from datetime import datetime
 from typing import Dict, List, Optional
+from dataclasses import dataclass, field
 
 ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
 from .skills.base import SkillRegistry
+
+
+@dataclass
+class AgentResult:
+    """Result of an agent run, capturing completion state and outputs."""
+    status: str  # "completed", "failed", "budget_exhausted", "max_cycles", "stopped"
+    message: str = ""
+    cycles_run: int = 0
+    total_cost: float = 0.0
+    total_tokens: int = 0
+    outputs: Dict = field(default_factory=dict)
+    actions_taken: List[Dict] = field(default_factory=list)
+
+    @property
+    def success(self) -> bool:
+        return self.status == "completed"
+
+    def summary(self) -> str:
+        return (
+            f"AgentResult(status={self.status}, cycles={self.cycles_run}, "
+            f"cost=${self.total_cost:.4f}, tokens={self.total_tokens})"
+        )
 from .skills.content import ContentCreationSkill
 from .skills.twitter import TwitterSkill
 from .skills.github import GitHubSkill
@@ -158,6 +181,9 @@ class AutonomousAgent:
 
         # Steering skill reference (set during skill init)
         self._steering_skill = None
+
+        # Completion signaling (used by run_with_objective)
+        self._completion_result: Optional[AgentResult] = None
 
     def _init_skills(self):
         """Install skills that have credentials configured."""
@@ -376,10 +402,169 @@ class AutonomousAgent:
             })
             self.created_resources['files'] = self.created_resources['files'][-20:]
 
+    async def run_with_objective(
+        self,
+        objective: str,
+        max_cycles: int = 100,
+        budget: Optional[float] = None,
+    ) -> "AgentResult":
+        """
+        Run the agent with a specific objective until completion.
+
+        The agent will run until:
+        - It calls the 'done' action (success)
+        - It calls the 'fail' action (failure)
+        - max_cycles is reached
+        - Budget is exhausted
+        - stop() is called externally
+
+        Args:
+            objective: What the agent should accomplish
+            max_cycles: Maximum number of cycles before stopping
+            budget: Optional budget override (uses current balance if None)
+
+        Returns:
+            AgentResult with status and collected outputs
+        """
+        if budget is not None:
+            self.balance = budget
+
+        # Inject objective into cognition engine's project context
+        objective_text = (
+            f"\n═══ OBJECTIVE ═══\n"
+            f"{objective}\n"
+            f"═══════════════════\n"
+            f"When you have completed this objective, call: "
+            f'{{\"tool\": \"done\", \"params\": {{\"message\": \"what you accomplished\"}}, '
+            f'"reasoning": "objective complete"}}\n'
+            f"If you determine the objective cannot be completed, call: "
+            f'{{\"tool\": \"fail\", \"params\": {{\"message\": \"why it failed\"}}, '
+            f'"reasoning": "cannot complete"}}\n'
+        )
+        self.cognition.project_context = objective_text
+
+        # Reset completion state
+        self._completion_result = None
+        self.running = True
+        self.cycle = 0
+        tools = self._get_tools()
+        cycle_start_time = datetime.now()
+
+        self._log("OBJECTIVE", objective[:200])
+        self._log("BALANCE", f"${self.balance:.4f} USD")
+        self._log("TOOLS", f"{len(tools)} available")
+
+        while self.running and self.balance > 0 and self.cycle < max_cycles:
+            self.cycle += 1
+            cycle_start = datetime.now()
+
+            avg_cycle_hours = self.cycle_interval / 3600
+            est_cost_per_cycle = 0.01 + (self.instance_cost_per_hour * avg_cycle_hours)
+            runway_cycles = self.balance / est_cost_per_cycle if est_cost_per_cycle > 0 else float('inf')
+            runway_hours = runway_cycles * (self.cycle_interval / 3600)
+
+            self._log("CYCLE", f"#{self.cycle}/{max_cycles} | ${self.balance:.4f}")
+
+            state = AgentState(
+                balance=self.balance,
+                burn_rate=est_cost_per_cycle,
+                runway_hours=runway_hours,
+                tools=self._get_tools(),
+                recent_actions=self.recent_actions[-10:],
+                cycle=self.cycle,
+                project_context=self.cognition.project_context,
+                created_resources=self.created_resources,
+            )
+
+            decision = await self.cognition.think(state)
+            self._log("THINK", decision.reasoning[:150] if decision.reasoning else "...")
+            self._log("DO", f"{decision.action.tool} {decision.action.params}")
+
+            result = await self._execute(decision.action)
+            self._log("RESULT", str(result)[:200])
+
+            self._track_created_resource(decision.action.tool, decision.action.params, result)
+
+            self.recent_actions.append({
+                "cycle": self.cycle,
+                "tool": decision.action.tool,
+                "params": decision.action.params,
+                "result": result,
+                "api_cost_usd": decision.api_cost_usd,
+                "tokens": decision.token_usage.total_tokens()
+            })
+
+            # Calculate costs
+            cycle_duration_hours = (datetime.now() - cycle_start).total_seconds() / 3600
+            instance_cost = self.instance_cost_per_hour * cycle_duration_hours
+            api_cost = decision.api_cost_usd
+            total_cycle_cost = instance_cost + api_cost
+
+            self.total_api_cost += api_cost
+            self.total_instance_cost += instance_cost
+            self.total_tokens_used += decision.token_usage.total_tokens()
+            self.balance -= total_cycle_cost
+
+            # Check if agent signaled completion
+            if self._completion_result is not None:
+                self._completion_result.cycles_run = self.cycle
+                self._completion_result.total_cost = self.total_api_cost + self.total_instance_cost
+                self._completion_result.total_tokens = self.total_tokens_used
+                self._completion_result.actions_taken = self.recent_actions[-20:]
+                self._log("COMPLETE", self._completion_result.summary())
+                self._mark_stopped()
+                return self._completion_result
+
+            await asyncio.sleep(self.cycle_interval)
+
+        # Determine why we stopped
+        if self.balance <= 0:
+            status = "budget_exhausted"
+            message = f"Balance exhausted after {self.cycle} cycles"
+        elif self.cycle >= max_cycles:
+            status = "max_cycles"
+            message = f"Reached max cycles ({max_cycles})"
+        else:
+            status = "stopped"
+            message = "Agent stopped externally"
+
+        result = AgentResult(
+            status=status,
+            message=message,
+            cycles_run=self.cycle,
+            total_cost=self.total_api_cost + self.total_instance_cost,
+            total_tokens=self.total_tokens_used,
+            actions_taken=self.recent_actions[-20:],
+        )
+        self._log("END", result.summary())
+        self._mark_stopped()
+        return result
+
     async def _execute(self, action: Action) -> Dict:
         """Execute an action via skills."""
         tool = action.tool
         params = action.params
+
+        # Built-in meta-actions for completion signaling
+        if tool == "done":
+            message = params.get("message", "Objective completed")
+            outputs = {k: v for k, v in params.items() if k != "message"}
+            self._completion_result = AgentResult(
+                status="completed",
+                message=message,
+                outputs=outputs,
+            )
+            self.running = False
+            return {"status": "success", "message": f"Agent completed: {message}"}
+
+        if tool == "fail":
+            message = params.get("message", "Objective failed")
+            self._completion_result = AgentResult(
+                status="failed",
+                message=message,
+            )
+            self.running = False
+            return {"status": "failed", "message": f"Agent failed: {message}"}
 
         if tool == "wait":
             return {"status": "waited"}
