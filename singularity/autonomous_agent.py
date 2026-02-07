@@ -49,6 +49,7 @@ from .skills.crypto import CryptoSkill
 from .skills.experiment import ExperimentSkill
 from .skills.event import EventSkill
 from .skills.planner import PlannerSkill
+from .skills.outcome_tracker import OutcomeTracker
 from .skills.scheduler import SchedulerSkill
 from .skills.strategy import StrategySkill
 from .skills.replication import ReplicationSkill
@@ -113,6 +114,7 @@ class AutonomousAgent:
         ExperimentSkill,
         EventSkill,
         PlannerSkill,
+        OutcomeTracker,
         SchedulerSkill,
         StrategySkill,
         ReplicationSkill,
@@ -244,6 +246,8 @@ class AutonomousAgent:
         # Steering skill reference (set during skill init)
         self._steering_skill = None
 
+        # Outcome tracker reference for self-improvement feedback loop
+        self._outcome_tracker = None
         # Performance tracker reference (set during skill init)
         self._performance_tracker = None
         # Tool resolver for fuzzy matching (lazy-initialized)
@@ -326,6 +330,9 @@ class AutonomousAgent:
                         agent_factory=lambda **kwargs: AutonomousAgent(**kwargs),
                     )
 
+                # Store outcome tracker reference for feedback loop
+                if skill_class == OutcomeTracker and skill:
+                    self._outcome_tracker = skill
                 # Wire up replication skill with agent reference
                 if skill_class == ReplicationSkill and skill:
                     skill.set_agent(self)
@@ -539,6 +546,15 @@ class AutonomousAgent:
             exec_time = self.metrics.stop_timer("execution") or 0.0
             exec_success = result.get("status") == "success"
             self.metrics.record_execution(decision.action.tool, exec_time, exec_success)
+
+            # Track outcome for self-improvement feedback loop
+            self._record_outcome(
+                tool=decision.action.tool,
+                success=exec_success,
+                cost=decision.api_cost_usd,
+                duration_ms=exec_time * 1000,
+                error=str(result.get("message", "")) if not exec_success else "",
+            )
             self._log("RESULT", str(result)[:200])
 
             # Emit events for reactive behavior
@@ -607,6 +623,22 @@ class AutonomousAgent:
                   f"Avg execution: {metrics_summary['avg_execution_latency_s']:.2f}s | "
                   f"Throughput: {metrics_summary['cycles_per_minute']:.1f} cycles/min")
         self._mark_stopped()
+
+
+    def _record_outcome(self, tool: str, success: bool, cost: float = 0.0,
+                        duration_ms: float = 0.0, error: str = ""):
+        """Record action outcome for self-improvement feedback loop."""
+        if self._outcome_tracker:
+            try:
+                self._outcome_tracker.record_sync(
+                    tool=tool,
+                    success=success,
+                    cost=cost,
+                    duration_ms=duration_ms,
+                    error=error,
+                )
+            except Exception:
+                pass  # Never let tracking break the agent loop
 
     def _track_created_resource(self, tool: str, params: Dict, result: Dict):
         """Track created resources."""

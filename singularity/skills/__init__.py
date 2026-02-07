@@ -25,6 +25,7 @@ from .crypto import CryptoSkill
 from .experiment import ExperimentSkill
 from .event import EventSkill
 from .planner import PlannerSkill
+from .outcome_tracker import OutcomeTracker
 from .scheduler import SchedulerSkill
 from .strategy import StrategySkill
 from .goal_manager import GoalManagerSkill
@@ -58,6 +59,7 @@ __all__ = [
     "ExperimentSkill",
     "EventSkill",
     "PlannerSkill",
+    "OutcomeTracker",
     "SchedulerSkill",
     "StrategySkill",
     "GoalManagerSkill",
