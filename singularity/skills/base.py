@@ -126,6 +126,26 @@ class Skill(ABC):
                 missing.append(cred)
         return missing
 
+    def configure(self, context: Dict[str, Any]) -> None:
+        """
+        Configure this skill with agent-provided hooks and context.
+
+        Called after all skills are installed, allowing skills to wire
+        themselves up with agent capabilities they need (LLM access,
+        cognition hooks, agent references, etc.)
+
+        Override this in skills that need agent integration. The default
+        implementation is a no-op.
+
+        Args:
+            context: Dict of agent capabilities. Common keys:
+                - 'agent': The AutonomousAgent instance
+                - 'cognition': The CognitionEngine instance
+                - 'agent_name': Agent name string
+                - 'agent_factory': Callable to create new agents
+        """
+        pass
+
     async def initialize(self) -> bool:
         """Initialize the skill (verify credentials, setup, etc.)"""
         if not self.check_credentials():
@@ -267,6 +287,28 @@ class SkillRegistry:
         result = await skill.execute(action, params)
         skill.record_usage(cost=result.cost, revenue=result.revenue)
         return result
+
+    def configure_all(self, context: Dict[str, Any]) -> Dict[str, str]:
+        """
+        Configure all installed skills with agent context.
+
+        Calls configure() on each installed skill, passing the agent context.
+        Skills that need agent integration (LLM access, cognition hooks, etc.)
+        override configure() to wire themselves up.
+
+        Args:
+            context: Dict of agent capabilities to pass to skills.
+
+        Returns:
+            Dict mapping skill_id to error message for any that failed.
+        """
+        errors = {}
+        for skill_id, skill in list(self.skills.items()):
+            try:
+                skill.configure(context)
+            except Exception as e:
+                errors[skill_id] = str(e)
+        return errors
 
     def get_skills_for_llm(self) -> str:
         """Get formatted skill list for LLM context"""

@@ -11,7 +11,7 @@ Enables agents to generate content using LLM:
 """
 
 import json
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from .base import Skill, SkillResult, SkillManifest, SkillAction
 
 try:
@@ -176,6 +176,12 @@ class ContentCreationSkill(Skill):
         self.llm = llm
         self.llm_type = llm_type
         self.model = model
+
+    def configure(self, context: Dict[str, Any]) -> None:
+        """Auto-wire LLM from agent's cognition engine."""
+        cognition = context.get("cognition")
+        if cognition:
+            self.set_llm(cognition.llm, cognition.llm_type, cognition.llm_model)
 
     def check_credentials(self) -> bool:
         """Check if LLM is available"""
