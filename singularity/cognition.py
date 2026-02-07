@@ -152,6 +152,7 @@ class AgentState:
     cycle: int = 0
     project_context: str = ""
     created_resources: Dict[str, Any] = field(default_factory=dict)
+    active_goals: List[Dict] = field(default_factory=list)
 
 
 @dataclass

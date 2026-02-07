@@ -44,6 +44,7 @@ from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
+from .skills.goal_manager import GoalManagerSkill
 
 
 class AutonomousAgent:
@@ -158,6 +159,8 @@ class AutonomousAgent:
 
         # Steering skill reference (set during skill init)
         self._steering_skill = None
+        # Goal manager reference (set during skill init)
+        self._goal_manager = None
 
     def _init_skills(self):
         """Install skills that have credentials configured."""
@@ -195,6 +198,7 @@ class AutonomousAgent:
             MemorySkill,
             OrchestratorSkill,
             CryptoSkill,
+            GoalManagerSkill,
         ]
 
         for skill_class in skill_classes:
@@ -245,6 +249,10 @@ class AutonomousAgent:
                         agent_name=self.name.lower().replace(" ", "_"),
                         dataset_prefix="singularity",
                     )
+
+                # Store goal manager reference for goal-directed behavior
+                if skill_class == GoalManagerSkill and skill:
+                    self._goal_manager = skill
 
                 # Wire up orchestrator skill with agent factory
                 if skill_class == OrchestratorSkill and skill:
@@ -308,6 +316,11 @@ class AutonomousAgent:
             self._log("CYCLE", f"#{self.cycle} | ${self.balance:.4f} | ~{runway_cycles:.0f} cycles left")
 
             # Think
+            # Get active goals for goal-directed behavior
+            active_goals = []
+            if self._goal_manager:
+                active_goals = self._goal_manager.get_active_goals()
+
             state = AgentState(
                 balance=self.balance,
                 burn_rate=est_cost_per_cycle,
@@ -316,6 +329,7 @@ class AutonomousAgent:
                 recent_actions=self.recent_actions[-10:],
                 cycle=self.cycle,
                 created_resources=self.created_resources,
+                active_goals=active_goals,
             )
 
             decision = await self.cognition.think(state)
