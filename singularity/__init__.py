@@ -10,6 +10,13 @@ __version__ = "0.1.0"
 from .autonomous_agent import AutonomousAgent
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
 from .skills.base import Skill, SkillRegistry, SkillManifest, SkillAction, SkillResult
+from .multi_action import (
+    parse_multi_action,
+    MultiActionExecutor,
+    MultiActionResult,
+    ActionItem,
+    ActionResult,
+)
 
 __all__ = [
     "AutonomousAgent",
@@ -23,4 +30,9 @@ __all__ = [
     "SkillManifest",
     "SkillAction",
     "SkillResult",
+    "parse_multi_action",
+    "MultiActionExecutor",
+    "MultiActionResult",
+    "ActionItem",
+    "ActionResult",
 ]

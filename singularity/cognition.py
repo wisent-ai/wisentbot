@@ -161,6 +161,7 @@ class Decision:
     reasoning: str = ""
     token_usage: TokenUsage = field(default_factory=TokenUsage)
     api_cost_usd: float = 0.0
+    raw_response: str = ""
 
 
 DEFAULT_SYSTEM_PROMPT = """
@@ -704,7 +705,8 @@ What action should you take? Respond with JSON: {{"tool": "skill:action", "param
             action=action,
             reasoning=action.reasoning,
             token_usage=token_usage,
-            api_cost_usd=api_cost
+            api_cost_usd=api_cost,
+            raw_response=response_text,
         )
 
     def _parse_action(self, response: str) -> Action:

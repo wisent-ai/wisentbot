@@ -28,6 +28,10 @@ ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
 from .skills.base import SkillRegistry
+from .multi_action import (
+    parse_multi_action, MultiActionExecutor, MultiActionResult,
+    MULTI_ACTION_PROMPT_ADDITION,
+)
 from .skills.content import ContentCreationSkill
 from .skills.twitter import TwitterSkill
 from .skills.github import GitHubSkill
@@ -158,6 +162,10 @@ class AutonomousAgent:
 
         # Steering skill reference (set during skill init)
         self._steering_skill = None
+
+        # Multi-action support
+        self.multi_action_enabled = True
+        self.max_actions_per_cycle = 5
 
     def _init_skills(self):
         """Install skills that have credentials configured."""
@@ -320,24 +328,60 @@ class AutonomousAgent:
 
             decision = await self.cognition.think(state)
             self._log("THINK", decision.reasoning[:150] if decision.reasoning else "...")
-            self._log("DO", f"{decision.action.tool} {decision.action.params}")
 
-            # Execute
-            result = await self._execute(decision.action)
-            self._log("RESULT", str(result)[:200])
+            # Parse for multi-action support
+            if self.multi_action_enabled:
+                actions = parse_multi_action(decision.raw_response if hasattr(decision, 'raw_response') else "")
+                if len(actions) <= 1:
+                    # Single action - use the parsed decision directly
+                    actions = None
 
-            # Track created resources
-            self._track_created_resource(decision.action.tool, decision.action.params, result)
+            if self.multi_action_enabled and actions and len(actions) > 1:
+                # Multi-action execution
+                self._log("MULTI", f"Executing {len(actions)} actions in sequence")
 
-            # Record action
-            self.recent_actions.append({
-                "cycle": self.cycle,
-                "tool": decision.action.tool,
-                "params": decision.action.params,
-                "result": result,
-                "api_cost_usd": decision.api_cost_usd,
-                "tokens": decision.token_usage.total_tokens()
-            })
+                async def _exec_wrapper(tool, params):
+                    return await self._execute(Action(tool=tool, params=params))
+
+                executor = MultiActionExecutor(
+                    execute_fn=_exec_wrapper,
+                    stop_on_error=True,
+                    max_actions=self.max_actions_per_cycle,
+                )
+                multi_result = await executor.execute(actions)
+
+                for ar in multi_result.results:
+                    self._log("DO", f"{ar.tool} {ar.params}")
+                    self._log("RESULT", str(ar.result)[:200])
+                    self._track_created_resource(ar.tool, ar.params, ar.result)
+
+                # Use last result for recording
+                last = multi_result.last_result
+                result = last.result if last else {"status": "no_actions"}
+
+                self.recent_actions.append({
+                    "cycle": self.cycle,
+                    "tool": f"multi({multi_result.completed_actions})",
+                    "params": {"actions": [r.tool for r in multi_result.results]},
+                    "result": multi_result.to_dict(),
+                    "api_cost_usd": decision.api_cost_usd,
+                    "tokens": decision.token_usage.total_tokens()
+                })
+            else:
+                # Single action execution (original path)
+                self._log("DO", f"{decision.action.tool} {decision.action.params}")
+                result = await self._execute(decision.action)
+                self._log("RESULT", str(result)[:200])
+                self._track_created_resource(decision.action.tool, decision.action.params, result)
+
+                self.recent_actions.append({
+                    "cycle": self.cycle,
+                    "tool": decision.action.tool,
+                    "params": decision.action.params,
+                    "result": result,
+                    "api_cost_usd": decision.api_cost_usd,
+                    "tokens": decision.token_usage.total_tokens()
+                })
 
             # Calculate costs
             cycle_duration_hours = (datetime.now() - cycle_start).total_seconds() / 3600
