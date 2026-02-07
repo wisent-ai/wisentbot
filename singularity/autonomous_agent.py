@@ -51,6 +51,7 @@ from .skills.event import EventSkill
 from .skills.planner import PlannerSkill
 from .skills.scheduler import SchedulerSkill
 from .skills.strategy import StrategySkill
+from .skills.replication import ReplicationSkill
 from .event_bus import EventBus, Event, EventPriority
 
 
@@ -105,6 +106,7 @@ class AutonomousAgent:
         PlannerSkill,
         SchedulerSkill,
         StrategySkill,
+        ReplicationSkill,
     ]
 
     def __init__(
@@ -302,6 +304,10 @@ class AutonomousAgent:
                         agent=self,
                         agent_factory=lambda **kwargs: AutonomousAgent(**kwargs),
                     )
+
+                # Wire up replication skill with agent reference
+                if skill_class == ReplicationSkill and skill:
+                    skill.set_agent(self)
 
                 if skill and skill.check_credentials():
                     self._log("SKILL", f"+ {skill.manifest.name}")
