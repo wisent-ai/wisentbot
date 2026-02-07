@@ -229,6 +229,10 @@ class CognitionEngine:
     Supports multiple backends for flexibility:
     - Cloud APIs (Anthropic, OpenAI, Vertex AI)
     - Local inference (vLLM, Transformers)
+
+    Features automatic provider fallback: if the primary provider fails
+    (API error, rate limit, timeout), the engine tries the next available
+    provider in the fallback chain.
     """
 
     def __init__(
@@ -250,12 +254,15 @@ class CognitionEngine:
         worker_system_prompt: str = "",
         worker_system_prompt_file: str = "",
         project_context_file: str = "",
+        # Fallback configuration
+        enable_fallback: bool = True,
     ):
         self.agent_name = agent_name
         self.agent_ticker = agent_ticker
         self.agent_type = agent_type
         self.agent_specialty = agent_specialty or agent_type
         self.llm_model = llm_model
+        self.enable_fallback = enable_fallback
 
         # Store credentials
         self._anthropic_api_key = anthropic_api_key
@@ -289,6 +296,15 @@ class CognitionEngine:
         self._training_examples = []
         self._finetuned_model_id = None
 
+        # Fallback tracking
+        self._fallback_stats = {
+            "primary_failures": 0,
+            "fallback_successes": 0,
+            "total_fallbacks": 0,
+            "last_fallback_provider": None,
+            "last_fallback_error": None,
+        }
+
         # Auto-detect provider
         if llm_provider == "auto":
             if self.vertex_project and (HAS_VERTEX_CLAUDE or HAS_VERTEX_GEMINI):
@@ -302,6 +318,7 @@ class CognitionEngine:
             elif HAS_OPENAI:
                 llm_provider = "openai"
 
+        self._primary_provider = llm_provider
         print(f"[COGNITION] Device: {DEVICE}, Provider: {llm_provider}, Model: {llm_model}")
 
         self.llm = None
@@ -338,7 +355,249 @@ class CognitionEngine:
             self.llm = openai.AsyncOpenAI(api_key=openai_api_key or "not-needed", base_url=openai_base_url)
             self.llm_type = "openai"
 
+        # Build fallback chain (lazily initialized clients)
+        self._fallback_chain = self._build_fallback_chain(llm_provider)
+        # Cache for lazily-created fallback clients
+        self._fallback_clients: Dict[str, Any] = {}
+
+        fallback_names = [f["provider"] for f in self._fallback_chain]
+        if fallback_names:
+            print(f"[COGNITION] Fallback chain: {' -> '.join(fallback_names)}")
+
         print(f"[COGNITION] Initialized with {self.llm_type} backend")
+
+    # === Fallback chain ===
+
+    # Default models for each provider when used as fallback
+    FALLBACK_MODELS = {
+        "anthropic": "claude-sonnet-4-20250514",
+        "openai": "gpt-4o-mini",
+        "vertex": "gemini-2.0-flash-001",
+    }
+
+    def _build_fallback_chain(self, primary_provider: str) -> List[Dict]:
+        """Build ordered list of fallback providers (excluding the primary)."""
+        if not self.enable_fallback:
+            return []
+
+        # Priority order for fallbacks
+        provider_order = ["anthropic", "openai", "vertex"]
+        chain = []
+
+        for provider in provider_order:
+            if provider == primary_provider:
+                continue
+            if provider == "anthropic" and HAS_ANTHROPIC and self._anthropic_api_key:
+                chain.append({
+                    "provider": "anthropic",
+                    "model": self.FALLBACK_MODELS["anthropic"],
+                })
+            elif provider == "openai" and HAS_OPENAI and self._openai_api_key:
+                chain.append({
+                    "provider": "openai",
+                    "model": self.FALLBACK_MODELS["openai"],
+                })
+            elif provider == "vertex" and self.vertex_project:
+                if HAS_VERTEX_GEMINI:
+                    chain.append({
+                        "provider": "vertex_gemini",
+                        "model": self.FALLBACK_MODELS["vertex"],
+                    })
+                elif HAS_VERTEX_CLAUDE:
+                    chain.append({
+                        "provider": "vertex",
+                        "model": "claude-3-5-sonnet-v2@20241022",
+                    })
+
+        return chain
+
+    def _get_fallback_client(self, provider: str) -> Any:
+        """Lazily create and cache a client for a fallback provider."""
+        if provider in self._fallback_clients:
+            return self._fallback_clients[provider]
+
+        client = None
+        if provider == "anthropic" and HAS_ANTHROPIC:
+            client = AsyncAnthropic(api_key=self._anthropic_api_key)
+        elif provider == "openai" and HAS_OPENAI:
+            client = openai.AsyncOpenAI(
+                api_key=self._openai_api_key or "not-needed",
+                base_url=self._openai_base_url,
+            )
+        elif provider == "vertex" and HAS_VERTEX_CLAUDE:
+            client = AnthropicVertex(
+                project_id=self.vertex_project,
+                region=self.vertex_location,
+            )
+        elif provider == "vertex_gemini" and HAS_VERTEX_GEMINI:
+            vertexai.init(project=self.vertex_project, location=self.vertex_location)
+            client = "gemini"
+
+        if client is not None:
+            self._fallback_clients[provider] = client
+        return client
+
+    async def _call_provider(
+        self, provider_type: str, model: str, client: Any,
+        system_prompt: str, user_prompt: str
+    ) -> tuple:
+        """
+        Call a specific LLM provider and return (response_text, token_usage).
+
+        Args:
+            provider_type: The provider type string
+            model: Model identifier
+            client: The provider client instance
+            system_prompt: System prompt text
+            user_prompt: User prompt text
+
+        Returns:
+            Tuple of (response_text, TokenUsage)
+
+        Raises:
+            Exception: If the provider call fails
+        """
+        if provider_type == "anthropic":
+            response = await client.messages.create(
+                model=model,
+                max_tokens=500,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+            return response.content[0].text, TokenUsage(
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+            )
+
+        elif provider_type == "vertex":
+            response = client.messages.create(
+                model=model,
+                max_tokens=500,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+            return response.content[0].text, TokenUsage(
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+            )
+
+        elif provider_type == "vertex_gemini":
+            gen_model = GenerativeModel(model, system_instruction=system_prompt)
+            response = await asyncio.to_thread(
+                gen_model.generate_content,
+                user_prompt,
+                generation_config=GenerationConfig(max_output_tokens=500, temperature=0.2)
+            )
+            usage = TokenUsage()
+            if hasattr(response, 'usage_metadata'):
+                usage = TokenUsage(
+                    input_tokens=response.usage_metadata.prompt_token_count,
+                    output_tokens=response.usage_metadata.candidates_token_count,
+                )
+            return response.text, usage
+
+        elif provider_type == "openai":
+            response = await client.chat.completions.create(
+                model=model,
+                max_tokens=500,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ]
+            )
+            usage = TokenUsage()
+            if response.usage:
+                usage = TokenUsage(
+                    input_tokens=response.usage.prompt_tokens,
+                    output_tokens=response.usage.completion_tokens,
+                )
+            return response.choices[0].message.content, usage
+
+        elif provider_type == "vllm":
+            full_prompt = f"{system_prompt}\n\nUser: {user_prompt}\n\nAssistant:"
+            outputs = client.generate([full_prompt], self.sampling_params)
+            text = outputs[0].outputs[0].text
+            return text, TokenUsage(
+                input_tokens=len(full_prompt.split()),
+                output_tokens=len(text.split()),
+            )
+
+        elif provider_type == "transformers":
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            inputs = self.tokenizer.apply_chat_template(
+                messages, add_generation_prompt=True, return_tensors="pt", return_dict=True
+            ).to(client.device)
+
+            with torch.no_grad():
+                outputs = client.generate(**inputs, max_new_tokens=500, temperature=0.2, do_sample=True)
+
+            text = self.tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
+            return text, TokenUsage(
+                input_tokens=inputs.input_ids.shape[1],
+                output_tokens=len(outputs[0]) - inputs.input_ids.shape[1],
+            )
+
+        raise ValueError(f"Unsupported provider type: {provider_type}")
+
+    async def _call_with_fallback(self, system_prompt: str, user_prompt: str) -> tuple:
+        """
+        Call the primary LLM provider, falling back to alternatives on failure.
+
+        Returns:
+            Tuple of (response_text, token_usage, provider_type, model)
+        """
+        # Try primary provider first
+        if self.llm is not None and self.llm_type != "none":
+            try:
+                text, usage = await self._call_provider(
+                    self.llm_type, self.llm_model, self.llm,
+                    system_prompt, user_prompt,
+                )
+                return text, usage, self.llm_type, self.llm_model
+            except Exception as primary_error:
+                self._fallback_stats["primary_failures"] += 1
+                self._fallback_stats["last_fallback_error"] = str(primary_error)
+                print(f"[COGNITION] Primary provider {self.llm_type} failed: {primary_error}")
+
+                if not self.enable_fallback or not self._fallback_chain:
+                    raise
+
+                # Try fallback providers
+                for fallback in self._fallback_chain:
+                    fb_provider = fallback["provider"]
+                    fb_model = fallback["model"]
+                    self._fallback_stats["total_fallbacks"] += 1
+
+                    try:
+                        fb_client = self._get_fallback_client(fb_provider)
+                        if fb_client is None:
+                            continue
+
+                        print(f"[COGNITION] Trying fallback: {fb_provider} ({fb_model})")
+                        text, usage = await self._call_provider(
+                            fb_provider, fb_model, fb_client,
+                            system_prompt, user_prompt,
+                        )
+                        self._fallback_stats["fallback_successes"] += 1
+                        self._fallback_stats["last_fallback_provider"] = fb_provider
+                        print(f"[COGNITION] Fallback succeeded: {fb_provider}")
+                        return text, usage, fb_provider, fb_model
+                    except Exception as fb_error:
+                        print(f"[COGNITION] Fallback {fb_provider} also failed: {fb_error}")
+                        continue
+
+                # All providers failed
+                raise primary_error
+
+        # No provider configured at all
+        return "", TokenUsage(), "none", ""
+
+    def get_fallback_stats(self) -> Dict:
+        """Get statistics about fallback usage."""
+        return dict(self._fallback_stats)
 
     # === Model access (for steering skill) ===
 
@@ -610,105 +869,31 @@ Available tools:
 
 What action should you take? Respond with JSON: {{"tool": "skill:action", "params": {{}}, "reasoning": "why"}}"""
 
-        # Call LLM based on backend
-        response_text = ""
-        token_usage = TokenUsage()
-
-        if self.llm_type == "anthropic":
-            response = await self.llm.messages.create(
-                model=self.llm_model,
-                max_tokens=500,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}]
+        # Call LLM with automatic fallback on failure
+        try:
+            response_text, token_usage, used_provider, used_model = await self._call_with_fallback(
+                system_prompt, user_prompt
             )
-            response_text = response.content[0].text
-            token_usage = TokenUsage(
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens
+        except Exception as e:
+            print(f"[COGNITION] All LLM providers failed: {e}")
+            return Decision(
+                action=Action(tool="wait", params={}, reasoning=f"LLM error: {e}"),
+                reasoning=f"All LLM providers failed: {e}",
+                token_usage=TokenUsage(),
+                api_cost_usd=0.0,
             )
 
-        elif self.llm_type == "vertex":
-            response = self.llm.messages.create(
-                model=self.llm_model,
-                max_tokens=500,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_prompt}]
-            )
-            response_text = response.content[0].text
-            token_usage = TokenUsage(
-                input_tokens=response.usage.input_tokens,
-                output_tokens=response.usage.output_tokens
-            )
-
-        elif self.llm_type == "vertex_gemini":
-            model = GenerativeModel(self.llm_model, system_instruction=system_prompt)
-            response = await asyncio.to_thread(
-                model.generate_content,
-                user_prompt,
-                generation_config=GenerationConfig(max_output_tokens=500, temperature=0.2)
-            )
-            response_text = response.text
-            if hasattr(response, 'usage_metadata'):
-                token_usage = TokenUsage(
-                    input_tokens=response.usage_metadata.prompt_token_count,
-                    output_tokens=response.usage_metadata.candidates_token_count
-                )
-
-        elif self.llm_type == "openai":
-            response = await self.llm.chat.completions.create(
-                model=self.llm_model,
-                max_tokens=500,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ]
-            )
-            response_text = response.choices[0].message.content
-            if response.usage:
-                token_usage = TokenUsage(
-                    input_tokens=response.usage.prompt_tokens,
-                    output_tokens=response.usage.completion_tokens
-                )
-
-        elif self.llm_type == "vllm":
-            full_prompt = f"{system_prompt}\n\nUser: {user_prompt}\n\nAssistant:"
-            outputs = self.llm.generate([full_prompt], self.sampling_params)
-            response_text = outputs[0].outputs[0].text
-            token_usage = TokenUsage(
-                input_tokens=len(full_prompt.split()),
-                output_tokens=len(response_text.split())
-            )
-
-        elif self.llm_type == "transformers":
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ]
-            inputs = self.tokenizer.apply_chat_template(
-                messages, add_generation_prompt=True, return_tensors="pt", return_dict=True
-            ).to(self.llm.device)
-
-            with torch.no_grad():
-                outputs = self.llm.generate(**inputs, max_new_tokens=500, temperature=0.2, do_sample=True)
-
-            response_text = self.tokenizer.decode(outputs[0][inputs.input_ids.shape[1]:], skip_special_tokens=True)
-            token_usage = TokenUsage(
-                input_tokens=inputs.input_ids.shape[1],
-                output_tokens=len(outputs[0]) - inputs.input_ids.shape[1]
-            )
-
-        else:
-            # Fallback - wait
+        if not response_text:
             return Decision(
                 action=Action(tool="wait", params={}),
                 reasoning="No LLM backend available",
                 token_usage=TokenUsage(),
-                api_cost_usd=0.0
+                api_cost_usd=0.0,
             )
 
         # Parse response
         action = self._parse_action(response_text)
-        api_cost = calculate_api_cost(self.llm_type, self.llm_model, token_usage)
+        api_cost = calculate_api_cost(used_provider, used_model, token_usage)
 
         return Decision(
             action=action,
