@@ -72,6 +72,7 @@ from .skills.agent_network import AgentNetworkSkill
 from .skills.context_synthesis import ContextSynthesisSkill
 from .skills.secret_vault import SecretVaultSkill
 from .skills.deployment import DeploymentSkill
+from .skills.learned_behavior import LearnedBehaviorSkill
 from .skills.code_review import CodeReviewSkill
 
 
@@ -154,6 +155,7 @@ class AutonomousAgent:
         ContextSynthesisSkill,
         SecretVaultSkill,
         DeploymentSkill,
+        LearnedBehaviorSkill,
         CodeReviewSkill,
     ]
 
@@ -385,6 +387,13 @@ class AutonomousAgent:
                     skill.set_cognition_hooks(
                         append_prompt=self.cognition.append_to_prompt,
                     )
+                # Wire up learned behavior skill to cognition engine
+                if skill_class == LearnedBehaviorSkill and skill:
+                    skill.set_cognition_hooks(
+                        append_prompt=self.cognition.append_to_prompt,
+                        get_prompt=self.cognition.get_system_prompt,
+                    )
+
                 # Wire up knowledge sharing skill with agent identity
                 if skill_class == KnowledgeSharingSkill and skill:
                     skill.set_agent_id(f"{self.name}_{self.ticker}")
