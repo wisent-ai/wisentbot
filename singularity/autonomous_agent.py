@@ -44,6 +44,7 @@ from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
+from .middleware import ActionMiddleware, MiddlewareChain, ActionContext
 
 
 class AutonomousAgent:
@@ -159,6 +160,9 @@ class AutonomousAgent:
         # Steering skill reference (set during skill init)
         self._steering_skill = None
 
+        # Action middleware chain
+        self.middleware = MiddlewareChain()
+
     def _init_skills(self):
         """Install skills that have credentials configured."""
         credentials = {
@@ -259,6 +263,18 @@ class AutonomousAgent:
                     self.skills.uninstall(skill_class(credentials).manifest.skill_id)
             except Exception as e:
                 pass  # Skip skills that fail to load
+
+    def add_middleware(self, middleware: ActionMiddleware) -> None:
+        """Add action middleware to the execution pipeline."""
+        self.middleware.add(middleware)
+
+    def remove_middleware(self, name: str) -> bool:
+        """Remove action middleware by name."""
+        return self.middleware.remove(name)
+
+    def list_middleware(self) -> List[str]:
+        """List installed middleware names."""
+        return self.middleware.list()
 
     def _get_tools(self) -> List[Dict]:
         """Get tools from installed skills."""
@@ -377,12 +393,34 @@ class AutonomousAgent:
             self.created_resources['files'] = self.created_resources['files'][-20:]
 
     async def _execute(self, action: Action) -> Dict:
-        """Execute an action via skills."""
+        """Execute an action via skills, with middleware pipeline."""
         tool = action.tool
         params = action.params
 
         if tool == "wait":
             return {"status": "waited"}
+
+        # Build middleware context
+        context = ActionContext(
+            tool=tool,
+            params=params,
+            cycle=self.cycle,
+            balance=self.balance,
+            agent_name=self.name,
+            timestamp=datetime.now().isoformat(),
+        )
+
+        # Run before-action middleware
+        if not self.middleware.is_empty:
+            result = await self.middleware.run_before(context)
+            if result is None:
+                return {
+                    "status": "blocked",
+                    "message": f"Action '{tool}' blocked by middleware",
+                }
+            context = result
+            tool = context.tool
+            params = context.params
 
         # Parse skill:action format
         if ":" in tool:
@@ -393,13 +431,22 @@ class AutonomousAgent:
             skill = self.skills.get(skill_id)
             if skill:
                 try:
-                    result = await skill.execute(action_name, params)
-                    return {
-                        "status": "success" if result.success else "failed",
-                        "data": result.data,
-                        "message": result.message
+                    skill_result = await skill.execute(action_name, params)
+                    exec_result = {
+                        "status": "success" if skill_result.success else "failed",
+                        "data": skill_result.data,
+                        "message": skill_result.message
                     }
+                    # Run after-action middleware
+                    if not self.middleware.is_empty:
+                        exec_result = await self.middleware.run_after(context, exec_result)
+                    return exec_result
                 except Exception as e:
+                    # Run on_error middleware (may provide recovery)
+                    if not self.middleware.is_empty:
+                        recovery = await self.middleware.run_on_error(context, e)
+                        if recovery is not None:
+                            return recovery
                     return {"status": "error", "message": str(e)}
 
         return {"status": "error", "message": f"Unknown tool: {tool}"}
