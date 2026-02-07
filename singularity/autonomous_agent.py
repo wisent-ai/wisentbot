@@ -64,6 +64,8 @@ from .skills.knowledge_sharing import KnowledgeSharingSkill
 from .skills.resource_watcher import ResourceWatcherSkill
 from .skills.revenue_services import RevenueServiceSkill
 from .skills.auto_catalog import AutoCatalogSkill
+from .skills.webhook import WebhookSkill
+from .skills.payment import PaymentSkill
 from .adaptive_executor import AdaptiveExecutor
 from .event_bus import EventBus, Event, EventPriority
 
@@ -132,6 +134,8 @@ class AutonomousAgent:
         ResourceWatcherSkill,
         RevenueServiceSkill,
         AutoCatalogSkill,
+        WebhookSkill,
+        PaymentSkill,
     ]
 
     def __init__(
