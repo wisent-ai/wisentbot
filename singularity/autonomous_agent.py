@@ -28,6 +28,7 @@ ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
 from .skills.base import SkillRegistry
+from .context import ContextAggregator
 from .skills.content import ContentCreationSkill
 from .skills.twitter import TwitterSkill
 from .skills.github import GitHubSkill
@@ -158,6 +159,9 @@ class AutonomousAgent:
 
         # Steering skill reference (set during skill init)
         self._steering_skill = None
+
+        # Context aggregator for runtime intelligence
+        self.context_aggregator = ContextAggregator()
 
     def _init_skills(self):
         """Install skills that have credentials configured."""
@@ -307,7 +311,8 @@ class AutonomousAgent:
 
             self._log("CYCLE", f"#{self.cycle} | ${self.balance:.4f} | ~{runway_cycles:.0f} cycles left")
 
-            # Think
+            # Think - inject runtime context for smarter decisions
+            runtime_context = self.context_aggregator.get_context()
             state = AgentState(
                 balance=self.balance,
                 burn_rate=est_cost_per_cycle,
@@ -316,6 +321,7 @@ class AutonomousAgent:
                 recent_actions=self.recent_actions[-10:],
                 cycle=self.cycle,
                 created_resources=self.created_resources,
+                project_context=runtime_context if runtime_context else None,
             )
 
             decision = await self.cognition.think(state)
@@ -328,6 +334,15 @@ class AutonomousAgent:
 
             # Track created resources
             self._track_created_resource(decision.action.tool, decision.action.params, result)
+
+            # Record action in context aggregator for runtime intelligence
+            self.context_aggregator.record_action(
+                tool=decision.action.tool,
+                params=decision.action.params,
+                result=result,
+                cost=decision.api_cost_usd,
+                cycle=self.cycle,
+            )
 
             # Record action
             self.recent_actions.append({
