@@ -581,10 +581,23 @@ class CognitionEngine:
         # Format recent actions
         recent_text = ""
         if state.recent_actions:
-            recent_text = "\nRecent actions:\n" + "\n".join([
-                f"- {a['tool']}: {a.get('result', {}).get('status', 'unknown')}"
-                for a in state.recent_actions[-5:]
-            ])
+            action_lines = []
+            for a in state.recent_actions[-5:]:
+                result = a.get('result', {})
+                status = result.get('status', 'unknown')
+                line = f"- {a['tool']}: {status}"
+                # Include error details for failed actions so the LLM can learn
+                if status in ('error', 'failed'):
+                    detail = result.get('error_detail', result.get('message', ''))
+                    if detail:
+                        # Truncate to keep prompt manageable
+                        detail = detail[:200]
+                        line += f" — {detail}"
+                    suggestions = result.get('recovery_suggestions', [])
+                    if suggestions:
+                        line += f" [Try: {suggestions[0]}]"
+                action_lines.append(line)
+            recent_text = "\nRecent actions:\n" + "\n".join(action_lines)
 
         user_prompt = f"""Current state:
 - Balance: ${state.balance:.4f}

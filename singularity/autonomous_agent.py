@@ -27,6 +27,7 @@ from typing import Dict, List, Optional
 ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
+from .error_recovery import ErrorRecoveryEngine
 from .skills.base import SkillRegistry
 from .skills.content import ContentCreationSkill
 from .skills.twitter import TwitterSkill
@@ -158,6 +159,9 @@ class AutonomousAgent:
 
         # Steering skill reference (set during skill init)
         self._steering_skill = None
+
+        # Error recovery engine for rich error handling
+        self.error_recovery = ErrorRecoveryEngine()
 
     def _init_skills(self):
         """Install skills that have credentials configured."""
@@ -394,13 +398,28 @@ class AutonomousAgent:
             if skill:
                 try:
                     result = await skill.execute(action_name, params)
-                    return {
+                    resp = {
                         "status": "success" if result.success else "failed",
                         "data": result.data,
                         "message": result.message
                     }
+                    if not result.success and result.message:
+                        resp["error_detail"] = result.message
+                    return resp
                 except Exception as e:
-                    return {"status": "error", "message": str(e)}
+                    error_ctx = self.error_recovery.create_error_context(
+                        exception=e,
+                        skill_id=skill_id,
+                        action_name=action_name,
+                        params=params,
+                    )
+                    return {
+                        "status": "error",
+                        "message": str(e),
+                        "error_detail": self.error_recovery.format_for_llm(error_ctx),
+                        "error_category": error_ctx.category.value,
+                        "recovery_suggestions": error_ctx.suggestions[:3],
+                    }
 
         return {"status": "error", "message": f"Unknown tool: {tool}"}
 
