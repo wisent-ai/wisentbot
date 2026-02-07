@@ -62,6 +62,8 @@ from .skills.feedback_loop import FeedbackLoopSkill
 from .skills.task_delegator import TaskDelegator
 from .skills.knowledge_sharing import KnowledgeSharingSkill
 from .skills.resource_watcher import ResourceWatcherSkill
+from .skills.revenue_services import RevenueServiceSkill
+from .skills.auto_catalog import AutoCatalogSkill
 from .adaptive_executor import AdaptiveExecutor
 from .event_bus import EventBus, Event, EventPriority
 
@@ -128,6 +130,8 @@ class AutonomousAgent:
         TaskDelegator,
         KnowledgeSharingSkill,
         ResourceWatcherSkill,
+        RevenueServiceSkill,
+        AutoCatalogSkill,
     ]
 
     def __init__(
