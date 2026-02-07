@@ -75,6 +75,7 @@ from .skills.deployment import DeploymentSkill
 from .skills.learned_behavior import LearnedBehaviorSkill
 from .skills.code_review import CodeReviewSkill
 from .skills.skill_analyzer import SkillDependencyAnalyzer
+from .skills.workflow_analytics import WorkflowAnalyticsSkill
 
 
 
@@ -159,6 +160,7 @@ class AutonomousAgent:
         LearnedBehaviorSkill,
         CodeReviewSkill,
         SkillDependencyAnalyzer,
+        WorkflowAnalyticsSkill,
     ]
 
 
