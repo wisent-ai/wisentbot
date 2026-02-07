@@ -28,6 +28,7 @@ ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
 from .skills.base import SkillRegistry
+from .skill_profiles import SkillProfileManager
 from .skills.content import ContentCreationSkill
 from .skills.twitter import TwitterSkill
 from .skills.github import GitHubSkill
@@ -90,6 +91,7 @@ class AutonomousAgent:
         openai_api_key: str = "",
         system_prompt: Optional[str] = None,
         system_prompt_file: Optional[str] = None,
+        skill_profile: Optional[str] = None,
     ):
         """
         Initialize an autonomous agent.
@@ -109,6 +111,10 @@ class AutonomousAgent:
             openai_api_key: OpenAI API key
             system_prompt: Custom system prompt
             system_prompt_file: Path to file containing system prompt
+            skill_profile: Skill profile name (e.g., 'developer', 'social',
+                          'minimal', 'autonomous', 'full'). If None, loads
+                          all skills (backward compatible). See
+                          SkillProfileManager.list_profiles() for options.
         """
         self.name = name
         self.ticker = ticker
@@ -139,6 +145,9 @@ class AutonomousAgent:
             system_prompt_file=system_prompt_file,
         )
 
+        # Skill profile
+        self.skill_profile = skill_profile
+
         # Skills registry
         self.skills = SkillRegistry()
         self._init_skills()
@@ -160,7 +169,11 @@ class AutonomousAgent:
         self._steering_skill = None
 
     def _init_skills(self):
-        """Install skills that have credentials configured."""
+        """Install skills that have credentials configured.
+
+        If a skill_profile is set, only skills in that profile are loaded.
+        Otherwise, all skills are loaded (backward compatible).
+        """
         credentials = {
             "ANTHROPIC_API_KEY": os.environ.get("ANTHROPIC_API_KEY", ""),
             "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", ""),
@@ -178,24 +191,29 @@ class AutonomousAgent:
         }
         self.skills.set_credentials(credentials)
 
-        skill_classes = [
-            ContentCreationSkill,
-            TwitterSkill,
-            GitHubSkill,
-            NamecheapSkill,
-            EmailSkill,
-            BrowserSkill,
-            VercelSkill,
-            FilesystemSkill,
-            ShellSkill,
-            MCPClientSkill,
-            RequestSkill,
-            SelfModifySkill,
-            SteeringSkill,
-            MemorySkill,
-            OrchestratorSkill,
-            CryptoSkill,
-        ]
+        if self.skill_profile:
+            # Use profile-based skill loading
+            skill_classes = SkillProfileManager.get_skill_classes(self.skill_profile)
+            if skill_classes:
+                self._log("PROFILE", f"Loading '{self.skill_profile}' profile ({len(skill_classes)} skills)")
+            else:
+                self._log("PROFILE", f"Profile '{self.skill_profile}' not found or empty, loading all skills")
+                skill_classes = [
+                    ContentCreationSkill, TwitterSkill, GitHubSkill,
+                    NamecheapSkill, EmailSkill, BrowserSkill, VercelSkill,
+                    FilesystemSkill, ShellSkill, MCPClientSkill, RequestSkill,
+                    SelfModifySkill, SteeringSkill, MemorySkill,
+                    OrchestratorSkill, CryptoSkill,
+                ]
+        else:
+            # Default: load all skills (backward compatible)
+            skill_classes = [
+                ContentCreationSkill, TwitterSkill, GitHubSkill,
+                NamecheapSkill, EmailSkill, BrowserSkill, VercelSkill,
+                FilesystemSkill, ShellSkill, MCPClientSkill, RequestSkill,
+                SelfModifySkill, SteeringSkill, MemorySkill,
+                OrchestratorSkill, CryptoSkill,
+            ]
 
         for skill_class in skill_classes:
             try:
