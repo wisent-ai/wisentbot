@@ -289,6 +289,10 @@ class CognitionEngine:
         self._training_examples = []
         self._finetuned_model_id = None
 
+        # Token management
+        from singularity.token_manager import TokenManager
+        self.token_manager = TokenManager(model=llm_model)
+
         # Auto-detect provider
         if llm_provider == "auto":
             if self.vertex_project and (HAS_VERTEX_CLAUDE or HAS_VERTEX_GEMINI):
@@ -422,6 +426,7 @@ class CognitionEngine:
                 self.llm = AsyncAnthropic(api_key=self._anthropic_api_key)
                 self.llm_type = "anthropic"
                 self.llm_model = new_model
+                self.token_manager.update_model(new_model)
                 return True
 
             elif new_model.startswith("gpt") or new_model.startswith("ft:"):
@@ -432,6 +437,7 @@ class CognitionEngine:
                     )
                     self.llm_type = "openai"
                     self.llm_model = new_model
+                    self.token_manager.update_model(new_model)
                     return True
 
             elif new_model.startswith("gemini") and self.vertex_project and HAS_VERTEX_GEMINI:
@@ -439,6 +445,7 @@ class CognitionEngine:
                 self.llm = "gemini"
                 self.llm_type = "vertex_gemini"
                 self.llm_model = new_model
+                self.token_manager.update_model(new_model)
                 return True
 
             print(f"[COGNITION] Model {new_model} not available")
@@ -578,13 +585,18 @@ class CognitionEngine:
             for t in state.tools
         ])
 
-        # Format recent actions
+        # Use token manager to fit recent actions within budget
+        system_prompt_tokens = self.token_manager.compute_budget(system_prompt, tools_text)
+        actions_budget = max(0, system_prompt_tokens.available // 3)
+
         recent_text = ""
         if state.recent_actions:
-            recent_text = "\nRecent actions:\n" + "\n".join([
-                f"- {a['tool']}: {a.get('result', {}).get('status', 'unknown')}"
-                for a in state.recent_actions[-5:]
-            ])
+            fitted = self.token_manager.fit_recent_actions(state.recent_actions, actions_budget)
+            if fitted:
+                recent_text = "\nRecent actions:\n" + "\n".join([
+                    f"- {a['tool']}: {a.get('result', {}).get('status', 'unknown')}"
+                    for a in fitted
+                ])
 
         user_prompt = f"""Current state:
 - Balance: ${state.balance:.4f}
@@ -699,6 +711,9 @@ What action should you take? Respond with JSON: {{"tool": "skill:action", "param
         # Parse response
         action = self._parse_action(response_text)
         api_cost = calculate_api_cost(self.llm_type, self.llm_model, token_usage)
+
+        # Track cumulative token usage
+        self.token_manager.record_usage(token_usage.input_tokens, token_usage.output_tokens, api_cost)
 
         return Decision(
             action=action,
