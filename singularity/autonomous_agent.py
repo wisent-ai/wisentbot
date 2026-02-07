@@ -44,6 +44,7 @@ from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
+from .skills.checkpoint import CheckpointSkill
 
 
 class AutonomousAgent:
@@ -159,6 +160,9 @@ class AutonomousAgent:
         # Steering skill reference (set during skill init)
         self._steering_skill = None
 
+        # Checkpoint skill reference (set during skill init)
+        self._checkpoint_skill = None
+
     def _init_skills(self):
         """Install skills that have credentials configured."""
         credentials = {
@@ -195,6 +199,7 @@ class AutonomousAgent:
             MemorySkill,
             OrchestratorSkill,
             CryptoSkill,
+            CheckpointSkill,
         ]
 
         for skill_class in skill_classes:
@@ -252,6 +257,15 @@ class AutonomousAgent:
                         agent=self,
                         agent_factory=lambda **kwargs: AutonomousAgent(**kwargs),
                     )
+
+                # Wire up checkpoint skill with agent state access
+                if skill_class == CheckpointSkill and skill:
+                    skill.set_agent_hooks(
+                        agent_name=self.name,
+                        get_state=self._get_checkpoint_state,
+                        set_state=self._restore_checkpoint_state,
+                    )
+                    self._checkpoint_skill = skill
 
                 if skill and skill.check_credentials():
                     self._log("SKILL", f"+ {skill.manifest.name}")
@@ -403,6 +417,40 @@ class AutonomousAgent:
                     return {"status": "error", "message": str(e)}
 
         return {"status": "error", "message": f"Unknown tool: {tool}"}
+
+    def _get_checkpoint_state(self) -> Dict:
+        """Get current agent state for checkpointing."""
+        return {
+            "name": self.name,
+            "ticker": self.ticker,
+            "agent_type": self.agent_type,
+            "specialty": self.specialty,
+            "balance": self.balance,
+            "cycle": self.cycle,
+            "total_api_cost": self.total_api_cost,
+            "total_instance_cost": self.total_instance_cost,
+            "total_tokens_used": self.total_tokens_used,
+            "recent_actions": self.recent_actions[-20:],
+            "created_resources": self.created_resources,
+            "running": self.running,
+        }
+
+    def _restore_checkpoint_state(self, state: Dict):
+        """Restore agent state from a checkpoint."""
+        if "balance" in state:
+            self.balance = state["balance"]
+        if "cycle" in state:
+            self.cycle = state["cycle"]
+        if "total_api_cost" in state:
+            self.total_api_cost = state["total_api_cost"]
+        if "total_instance_cost" in state:
+            self.total_instance_cost = state["total_instance_cost"]
+        if "total_tokens_used" in state:
+            self.total_tokens_used = state["total_tokens_used"]
+        if "recent_actions" in state:
+            self.recent_actions = state["recent_actions"]
+        if "created_resources" in state:
+            self.created_resources = state["created_resources"]
 
     def _kill_for_tampering(self):
         """
