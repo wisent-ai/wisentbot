@@ -25,6 +25,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
+from .output_manager import format_action_history
+
 # Optional torch import - only needed for local LLM inference
 HAS_TORCH = False
 try:
@@ -152,6 +154,7 @@ class AgentState:
     cycle: int = 0
     project_context: str = ""
     created_resources: Dict[str, Any] = field(default_factory=dict)
+    execution_stats: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -578,13 +581,34 @@ class CognitionEngine:
             for t in state.tools
         ])
 
-        # Format recent actions
+        # Format recent actions with smart history formatting
         recent_text = ""
         if state.recent_actions:
-            recent_text = "\nRecent actions:\n" + "\n".join([
-                f"- {a['tool']}: {a.get('result', {}).get('status', 'unknown')}"
-                for a in state.recent_actions[-5:]
-            ])
+            # Use detailed format for last few actions, normal for the rest
+            detail = "detailed" if len(state.recent_actions) <= 5 else "normal"
+            recent_text = format_action_history(
+                state.recent_actions,
+                max_actions=10,
+                max_total_chars=4000,
+                detail_level=detail,
+            )
+
+        # Format execution stats
+        exec_stats_text = ""
+        if state.execution_stats:
+            stats = state.execution_stats
+            if stats.get("skill_stats"):
+                lines = []
+                for skill_id, s in stats["skill_stats"].items():
+                    rate = s["success_rate"]
+                    avg_time = s["avg_time_ms"]
+                    status = "⚠ FAILING" if rate < 0.5 and s["total"] >= 3 else "✓" if rate >= 0.8 else "~"
+                    lines.append(f"  {status} {skill_id}: {s['successes']}/{s['total']} ok ({rate:.0%}), avg {avg_time:.0f}ms")
+                if lines:
+                    exec_stats_text = "\n\nExecution stats:\n" + "\n".join(lines)
+            warnings = stats.get("warnings", [])
+            if warnings:
+                exec_stats_text += "\n\n⚠ Warnings:\n" + "\n".join(f"  - {w}" for w in warnings)
 
         user_prompt = f"""Current state:
 - Balance: ${state.balance:.4f}
@@ -594,7 +618,7 @@ class CognitionEngine:
 
 Available tools:
 {tools_text}
-{recent_text}
+{recent_text}{exec_stats_text}
 
 {state.project_context}
 
