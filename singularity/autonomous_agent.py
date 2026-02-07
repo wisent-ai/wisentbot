@@ -46,6 +46,7 @@ from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
+from .skills.experiment import ExperimentSkill
 
 
 class AutonomousAgent:
@@ -94,6 +95,7 @@ class AutonomousAgent:
         MemorySkill,
         OrchestratorSkill,
         CryptoSkill,
+        ExperimentSkill,
     ]
 
     def __init__(
