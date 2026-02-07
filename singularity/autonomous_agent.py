@@ -69,6 +69,7 @@ from .skills.payment import PaymentSkill
 from .skills.usage_tracking import UsageTrackingSkill
 from .skills.skill_composer import SkillComposerSkill
 from .skills.agent_network import AgentNetworkSkill
+from .skills.context_synthesis import ContextSynthesisSkill
 from .adaptive_executor import AdaptiveExecutor
 from .event_bus import EventBus, Event, EventPriority
 
@@ -141,7 +142,8 @@ class AutonomousAgent:
         PaymentSkill,
         UsageTrackingSkill,
         SkillComposerSkill,
-        AgentNetworkSkill,    ]
+        AgentNetworkSkill,
+        ContextSynthesisSkill,    ]
 
     def __init__(
         self,
@@ -360,6 +362,11 @@ class AutonomousAgent:
                         get_prompt=self.cognition.get_system_prompt,
                     )
 
+                # Wire up context synthesis skill to cognition engine
+                if skill_class == ContextSynthesisSkill and skill:
+                    skill.set_cognition_hooks(
+                        append_prompt=self.cognition.append_to_prompt,
+                    )
                 # Wire up knowledge sharing skill with agent identity
                 if skill_class == KnowledgeSharingSkill and skill:
                     skill.set_agent_id(f"{self.name}_{self.ticker}")
