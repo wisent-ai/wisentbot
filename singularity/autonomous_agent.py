@@ -27,6 +27,7 @@ from typing import Dict, List, Optional
 ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
+from .journal import AgentJournal
 from .skills.base import SkillRegistry
 from .skills.content import ContentCreationSkill
 from .skills.twitter import TwitterSkill
@@ -159,6 +160,9 @@ class AutonomousAgent:
         # Steering skill reference (set during skill init)
         self._steering_skill = None
 
+        # Persistent journal for cross-session memory
+        self.journal = AgentJournal()
+
     def _init_skills(self):
         """Install skills that have credentials configured."""
         credentials = {
@@ -288,6 +292,12 @@ class AutonomousAgent:
         tools = self._get_tools()
         cycle_start_time = datetime.now()
 
+        # Start journal session for cross-session memory
+        session_id = self.journal.start_session(self.name, self.ticker, self.agent_type)
+        journal_context = self.journal.get_context_summary()
+        if journal_context:
+            self._log("JOURNAL", f"Loaded {self.journal.get_session_count()} past sessions")
+
         self._log("AWAKE", f"{self.name} (${self.ticker}) - Type: {self.agent_type}")
         self._log("BALANCE", f"${self.balance:.4f} USD")
         self._log("TOOLS", f"{len(tools)} available")
@@ -307,7 +317,7 @@ class AutonomousAgent:
 
             self._log("CYCLE", f"#{self.cycle} | ${self.balance:.4f} | ~{runway_cycles:.0f} cycles left")
 
-            # Think
+            # Think - inject journal context so LLM knows about past sessions
             state = AgentState(
                 balance=self.balance,
                 burn_rate=est_cost_per_cycle,
@@ -316,6 +326,7 @@ class AutonomousAgent:
                 recent_actions=self.recent_actions[-10:],
                 cycle=self.cycle,
                 created_resources=self.created_resources,
+                project_context=journal_context,
             )
 
             decision = await self.cognition.think(state)
@@ -328,6 +339,14 @@ class AutonomousAgent:
 
             # Track created resources
             self._track_created_resource(decision.action.tool, decision.action.params, result)
+
+            # Record action in journal for cross-session memory
+            self.journal.record_action(
+                tool=decision.action.tool,
+                params=decision.action.params,
+                status=result.get("status", "unknown"),
+                message=result.get("message", str(result.get("data", "")))[:200],
+            )
 
             # Record action
             self.recent_actions.append({
@@ -360,6 +379,13 @@ class AutonomousAgent:
         total_runtime_hours = (datetime.now() - cycle_start_time).total_seconds() / 3600
         self._log("END", f"Balance: ${self.balance:.4f}")
         self._log("SUMMARY", f"Ran {self.cycle} cycles in {total_runtime_hours:.2f}h | API: ${self.total_api_cost:.4f} | Tokens: {self.total_tokens_used}")
+
+        # End journal session with summary
+        self.journal.end_session(
+            cycles=self.cycle,
+            total_cost=self.total_api_cost + self.total_instance_cost,
+            balance_remaining=self.balance,
+        )
         self._mark_stopped()
 
     def _track_created_resource(self, tool: str, params: Dict, result: Dict):
