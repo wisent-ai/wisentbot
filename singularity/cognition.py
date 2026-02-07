@@ -152,6 +152,7 @@ class AgentState:
     cycle: int = 0
     project_context: str = ""
     created_resources: Dict[str, Any] = field(default_factory=dict)
+    pending_events: List[Dict] = field(default_factory=list)
 
 
 @dataclass
@@ -933,6 +934,18 @@ class CognitionEngine:
                     for a in state.recent_actions[-5:]
                 ])
 
+        # Format pending events
+        events_text = ""
+        if state.pending_events:
+            events_lines = ["\nPENDING EVENTS (react to these):"]
+            for pe in state.pending_events[:5]:
+                evt = pe.get("event", {})
+                events_lines.append(
+                    f"  - [{evt.get('topic', '?')}] from {evt.get('source', '?')}: "
+                    f"{evt.get('data', {})} (reaction: {pe.get('reaction', 'handle it')})"
+                )
+            events_text = "\n".join(events_lines)
+
         user_prompt = f"""Current state:
 - Balance: ${state.balance:.4f}
 - Burn rate: ${state.burn_rate:.6f}/cycle
@@ -942,6 +955,7 @@ class CognitionEngine:
 Available tools:
 {tools_text}
 {recent_text}
+{events_text}
 
 {state.project_context}
 

@@ -47,6 +47,8 @@ from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
 from .skills.experiment import ExperimentSkill
+from .skills.event import EventSkill
+from .event_bus import EventBus, Event, EventPriority
 
 
 class AutonomousAgent:
@@ -96,6 +98,7 @@ class AutonomousAgent:
         OrchestratorSkill,
         CryptoSkill,
         ExperimentSkill,
+        EventSkill,
     ]
 
     def __init__(
@@ -189,6 +192,13 @@ class AutonomousAgent:
             log_fn=self._log,
             get_state_fn=self._get_agent_state,
         )
+
+        # Event bus for reactive behavior
+        self._event_bus = EventBus(
+            max_history=500,
+            persist_path=str(Path(__file__).parent / "data" / "events.json"),
+        )
+        self._wire_event_bus()
 
         # State
         self.recent_actions: List[Dict] = []
@@ -297,6 +307,32 @@ class AutonomousAgent:
                     "error": str(e),
                 })
 
+
+    def _wire_event_bus(self):
+        """Wire the shared EventBus into the EventSkill."""
+        for skill in self.skills.skills.values():
+            if isinstance(skill, EventSkill):
+                skill.set_event_bus(self._event_bus)
+                self._log("EVENT", "EventBus wired into EventSkill")
+                break
+
+    async def _emit_event(self, topic: str, data: Dict = None, priority: EventPriority = EventPriority.NORMAL):
+        """Emit an event from the agent core."""
+        event = Event(
+            topic=topic,
+            data=data or {},
+            source="agent",
+            priority=priority,
+        )
+        await self._event_bus.publish(event)
+
+    def _get_pending_events(self) -> List[Dict]:
+        """Get pending events from subscriptions for LLM context."""
+        for skill in self.skills.skills.values():
+            if isinstance(skill, EventSkill):
+                return skill.get_pending_events()
+        return []
+
     def add_skill(self, skill_class: Type) -> bool:
         """Add a skill class at runtime. Returns True if successfully loaded."""
         if skill_class in self._skill_classes:
@@ -392,7 +428,19 @@ class AutonomousAgent:
 
             self._log("CYCLE", f"#{self.cycle} | ${self.balance:.4f} | ~{runway_cycles:.0f} cycles left")
 
+            # Emit cycle start event
+            await self._emit_event("cycle.start", {
+                "cycle": self.cycle,
+                "balance": self.balance,
+                "runway_cycles": runway_cycles,
+            })
+
             # Think
+            # Check for pending events from subscriptions
+            pending_events = self._get_pending_events()
+            if pending_events:
+                self._log("EVENTS", f"{len(pending_events)} pending event(s)")
+
             state = AgentState(
                 balance=self.balance,
                 burn_rate=est_cost_per_cycle,
@@ -402,6 +450,7 @@ class AutonomousAgent:
                 cycle=self.cycle,
                 created_resources=self.created_resources,
                 project_context=self.project_context,
+                pending_events=pending_events,
             )
 
             self.metrics.start_timer("decision")
@@ -422,6 +471,15 @@ class AutonomousAgent:
             exec_success = result.get("status") == "success"
             self.metrics.record_execution(decision.action.tool, exec_time, exec_success)
             self._log("RESULT", str(result)[:200])
+
+            # Emit events for reactive behavior
+            event_topic = "action.success" if result.get("status") == "success" else "action.failed"
+            await self._emit_event(event_topic, {
+                "cycle": self.cycle,
+                "tool": decision.action.tool,
+                "result_status": result.get("status"),
+                "message": str(result.get("message", ""))[:200],
+            })
 
             # Track created resources
             self._track_created_resource(decision.action.tool, decision.action.params, result)

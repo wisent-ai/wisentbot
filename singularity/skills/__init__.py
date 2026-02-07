@@ -23,6 +23,7 @@ from .memory import MemorySkill
 from .orchestrator import OrchestratorSkill
 from .crypto import CryptoSkill
 from .experiment import ExperimentSkill
+from .event import EventSkill
 
 __all__ = [
     # Base
@@ -49,4 +50,5 @@ __all__ = [
     "OrchestratorSkill",
     "CryptoSkill",
     "ExperimentSkill",
+    "EventSkill",
 ]
