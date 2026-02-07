@@ -709,16 +709,17 @@ What action should you take? Respond with JSON: {{"tool": "skill:action", "param
 
     def _parse_action(self, response: str) -> Action:
         """Parse LLM response into an Action."""
-        # Try to extract JSON from response
-        json_match = re.search(r'\{[^{}]*"tool"[^{}]*\}', response, re.DOTALL)
-        if json_match:
+        # Try to extract JSON from response using brace matching to handle nested objects
+        json_str = self._extract_json_object(response)
+        if json_str:
             try:
-                data = json.loads(json_match.group())
-                return Action(
-                    tool=data.get("tool", "wait"),
-                    params=data.get("params", {}),
-                    reasoning=data.get("reasoning", "")
-                )
+                data = json.loads(json_str)
+                if "tool" in data:
+                    return Action(
+                        tool=data.get("tool", "wait"),
+                        params=data.get("params", {}),
+                        reasoning=data.get("reasoning", "")
+                    )
             except json.JSONDecodeError:
                 pass
 
@@ -728,3 +729,45 @@ What action should you take? Respond with JSON: {{"tool": "skill:action", "param
             return Action(tool=tool_match.group(1), params={}, reasoning=response[:200])
 
         return Action(tool="wait", params={}, reasoning="Could not parse response")
+
+    @staticmethod
+    def _extract_json_object(text: str) -> Optional[str]:
+        """Extract the first valid JSON object from text, handling nested braces.
+
+        Scans for the first '{' and tracks brace depth to find the matching '}'.
+        This correctly handles nested objects like {"params": {"key": "value"}}.
+        """
+        start = text.find("{")
+        if start == -1:
+            return None
+
+        depth = 0
+        in_string = False
+        escape_next = False
+
+        for i in range(start, len(text)):
+            char = text[i]
+
+            if escape_next:
+                escape_next = False
+                continue
+
+            if char == "\\":
+                escape_next = True
+                continue
+
+            if char == '"':
+                in_string = not in_string
+                continue
+
+            if in_string:
+                continue
+
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : i + 1]
+
+        return None

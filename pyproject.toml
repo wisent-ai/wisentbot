@@ -82,6 +82,9 @@ singularity = "singularity.autonomous_agent:main"
 [tool.setuptools.packages.find]
 where = ["."]
 
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
 [tool.black]
 line-length = 100
 target-version = ["py310", "py311", "py312"]
