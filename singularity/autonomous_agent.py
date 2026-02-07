@@ -27,6 +27,7 @@ from typing import Dict, List, Optional
 ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
+from .adaptive import AdaptiveIntelligence
 from .skills.base import SkillRegistry
 from .skills.content import ContentCreationSkill
 from .skills.twitter import TwitterSkill
@@ -158,6 +159,9 @@ class AutonomousAgent:
 
         # Steering skill reference (set during skill init)
         self._steering_skill = None
+
+        # Adaptive intelligence for in-session learning
+        self.adaptive = AdaptiveIntelligence()
 
     def _init_skills(self):
         """Install skills that have credentials configured."""
@@ -307,7 +311,8 @@ class AutonomousAgent:
 
             self._log("CYCLE", f"#{self.cycle} | ${self.balance:.4f} | ~{runway_cycles:.0f} cycles left")
 
-            # Think
+            # Think — inject adaptive intelligence context
+            adaptive_context = self.adaptive.get_context()
             state = AgentState(
                 balance=self.balance,
                 burn_rate=est_cost_per_cycle,
@@ -316,6 +321,7 @@ class AutonomousAgent:
                 recent_actions=self.recent_actions[-10:],
                 cycle=self.cycle,
                 created_resources=self.created_resources,
+                project_context=adaptive_context,
             )
 
             decision = await self.cognition.think(state)
@@ -325,6 +331,15 @@ class AutonomousAgent:
             # Execute
             result = await self._execute(decision.action)
             self._log("RESULT", str(result)[:200])
+
+            # Record outcome for adaptive intelligence
+            action_success = result.get("status") in ("success", "waited")
+            self.adaptive.record_outcome(
+                tool=decision.action.tool,
+                params=decision.action.params,
+                success=action_success,
+                error_message=result.get("message", ""),
+            )
 
             # Track created resources
             self._track_created_resource(decision.action.tool, decision.action.params, result)
