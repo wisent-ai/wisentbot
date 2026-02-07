@@ -44,6 +44,7 @@ from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
 from .skills.crypto import CryptoSkill
+from .skills.performance_tracker import PerformanceTrackerSkill
 
 
 class AutonomousAgent:
@@ -159,6 +160,9 @@ class AutonomousAgent:
         # Steering skill reference (set during skill init)
         self._steering_skill = None
 
+        # Performance tracker reference (set during skill init)
+        self._performance_tracker = None
+
     def _init_skills(self):
         """Install skills that have credentials configured."""
         credentials = {
@@ -195,6 +199,7 @@ class AutonomousAgent:
             MemorySkill,
             OrchestratorSkill,
             CryptoSkill,
+            PerformanceTrackerSkill,
         ]
 
         for skill_class in skill_classes:
@@ -245,6 +250,12 @@ class AutonomousAgent:
                         agent_name=self.name.lower().replace(" ", "_"),
                         dataset_prefix="singularity",
                     )
+
+                # Wire up performance tracker with persistence
+                if skill_class == PerformanceTrackerSkill and skill:
+                    persist_path = str(Path(__file__).parent / "data" / "performance.json")
+                    skill.set_persist_path(persist_path)
+                    self._performance_tracker = skill
 
                 # Wire up orchestrator skill with agent factory
                 if skill_class == OrchestratorSkill and skill:
@@ -330,6 +341,8 @@ class AutonomousAgent:
             self._track_created_resource(decision.action.tool, decision.action.params, result)
 
             # Record action
+            action_duration = (datetime.now() - cycle_start).total_seconds()
+            action_success = result.get("status") == "success"
             self.recent_actions.append({
                 "cycle": self.cycle,
                 "tool": decision.action.tool,
@@ -338,6 +351,19 @@ class AutonomousAgent:
                 "api_cost_usd": decision.api_cost_usd,
                 "tokens": decision.token_usage.total_tokens()
             })
+
+            # Auto-record performance metrics
+            if self._performance_tracker and ":" in decision.action.tool:
+                skill_id, action_name = decision.action.tool.split(":", 1)
+                self._performance_tracker.record_sync(
+                    skill_id=skill_id,
+                    action_name=action_name,
+                    success=action_success,
+                    duration_seconds=action_duration,
+                    cost_usd=decision.api_cost_usd,
+                    error_message=result.get("message", "") if not action_success else "",
+                    cycle=self.cycle,
+                )
 
             # Calculate costs
             cycle_duration_hours = (datetime.now() - cycle_start).total_seconds() / 3600
