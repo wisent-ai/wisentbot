@@ -28,22 +28,14 @@ ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
 from .skills.base import SkillRegistry
+from .skill_discovery import discover_skills
+
+# Import specific skills only for wiring hooks (type checking)
 from .skills.content import ContentCreationSkill
-from .skills.twitter import TwitterSkill
-from .skills.github import GitHubSkill
-from .skills.namecheap import NamecheapSkill
-from .skills.email import EmailSkill
-from .skills.browser import BrowserSkill
-from .skills.vercel import VercelSkill
-from .skills.filesystem import FilesystemSkill
-from .skills.shell import ShellSkill
-from .skills.mcp_client import MCPClientSkill
-from .skills.request import RequestSkill
 from .skills.self_modify import SelfModifySkill
 from .skills.steering import SteeringSkill
 from .skills.memory import MemorySkill
 from .skills.orchestrator import OrchestratorSkill
-from .skills.crypto import CryptoSkill
 
 
 class AutonomousAgent:
@@ -178,24 +170,8 @@ class AutonomousAgent:
         }
         self.skills.set_credentials(credentials)
 
-        skill_classes = [
-            ContentCreationSkill,
-            TwitterSkill,
-            GitHubSkill,
-            NamecheapSkill,
-            EmailSkill,
-            BrowserSkill,
-            VercelSkill,
-            FilesystemSkill,
-            ShellSkill,
-            MCPClientSkill,
-            RequestSkill,
-            SelfModifySkill,
-            SteeringSkill,
-            MemorySkill,
-            OrchestratorSkill,
-            CryptoSkill,
-        ]
+        # Auto-discover all Skill subclasses instead of hardcoding
+        skill_classes = discover_skills()
 
         for skill_class in skill_classes:
             try:
