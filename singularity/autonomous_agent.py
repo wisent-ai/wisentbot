@@ -28,6 +28,7 @@ ACTIVITY_FILE = Path(__file__).parent / "data" / "activity.json"
 
 from .cognition import CognitionEngine, AgentState, Decision, Action, TokenUsage
 from .skills.base import SkillRegistry
+from .tool_filter import AdaptiveToolSelector
 from .skills.content import ContentCreationSkill
 from .skills.twitter import TwitterSkill
 from .skills.github import GitHubSkill
@@ -159,6 +160,10 @@ class AutonomousAgent:
         # Steering skill reference (set during skill init)
         self._steering_skill = None
 
+        # Adaptive tool selector for prioritizing tools based on usage
+        tool_stats_path = str(Path(__file__).parent / "data" / "tool_stats.json")
+        self.tool_selector = AdaptiveToolSelector(persistence_path=tool_stats_path)
+
     def _init_skills(self):
         """Install skills that have credentials configured."""
         credentials = {
@@ -261,7 +266,7 @@ class AutonomousAgent:
                 pass  # Skip skills that fail to load
 
     def _get_tools(self) -> List[Dict]:
-        """Get tools from installed skills."""
+        """Get tools from installed skills, prioritized by usage history."""
         tools = []
 
         for skill in self.skills.skills.values():
@@ -279,8 +284,10 @@ class AutonomousAgent:
                 "description": "No tools available. Wait.",
                 "parameters": {}
             })
+            return tools
 
-        return tools
+        # Prioritize tools based on usage history
+        return self.tool_selector.prioritize_tools(tools)
 
     async def run(self):
         """Main agent loop."""
@@ -325,6 +332,10 @@ class AutonomousAgent:
             # Execute
             result = await self._execute(decision.action)
             self._log("RESULT", str(result)[:200])
+
+            # Track tool usage for adaptive selection
+            tool_success = result.get("status") == "success"
+            self.tool_selector.record_usage(decision.action.tool, tool_success)
 
             # Track created resources
             self._track_created_resource(decision.action.tool, decision.action.params, result)
