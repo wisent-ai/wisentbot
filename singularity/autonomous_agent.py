@@ -90,6 +90,9 @@ class AutonomousAgent:
         openai_api_key: str = "",
         system_prompt: Optional[str] = None,
         system_prompt_file: Optional[str] = None,
+        objective: Optional[str] = None,
+        project_context: Optional[str] = None,
+        project_context_file: Optional[str] = None,
     ):
         """
         Initialize an autonomous agent.
@@ -109,6 +112,9 @@ class AutonomousAgent:
             openai_api_key: OpenAI API key
             system_prompt: Custom system prompt
             system_prompt_file: Path to file containing system prompt
+            objective: Current mission/task for the agent to focus on
+            project_context: Additional context string injected into LLM prompt
+            project_context_file: Path to file containing project context
         """
         self.name = name
         self.ticker = ticker
@@ -118,6 +124,11 @@ class AutonomousAgent:
         self.instance_type = instance_type
         self.cycle_interval = cycle_interval_seconds
         self.instance_cost_per_hour = self.INSTANCE_COSTS.get(instance_type, 0.0)
+
+        # Objective and project context
+        self.objective = objective or os.environ.get("AGENT_OBJECTIVE", "")
+        self._project_context = project_context or ""
+        self._project_context_file = project_context_file or os.environ.get("PROJECT_CONTEXT_FILE", "")
 
         # Cost tracking
         self.total_api_cost = 0.0
@@ -137,6 +148,7 @@ class AutonomousAgent:
             agent_specialty=self.specialty,
             system_prompt=system_prompt,
             system_prompt_file=system_prompt_file,
+            project_context_file=self._project_context_file,
         )
 
         # Skills registry
@@ -289,6 +301,8 @@ class AutonomousAgent:
         cycle_start_time = datetime.now()
 
         self._log("AWAKE", f"{self.name} (${self.ticker}) - Type: {self.agent_type}")
+        if self.objective:
+            self._log("OBJECTIVE", self.objective[:200])
         self._log("BALANCE", f"${self.balance:.4f} USD")
         self._log("TOOLS", f"{len(tools)} available")
 
@@ -316,6 +330,7 @@ class AutonomousAgent:
                 recent_actions=self.recent_actions[-10:],
                 cycle=self.cycle,
                 created_resources=self.created_resources,
+                project_context=self._build_project_context(),
             )
 
             decision = await self.cognition.think(state)
@@ -403,6 +418,21 @@ class AutonomousAgent:
                     return {"status": "error", "message": str(e)}
 
         return {"status": "error", "message": f"Unknown tool: {tool}"}
+
+    def _build_project_context(self) -> str:
+        """Build combined project context from objective, inline context, and file context."""
+        parts = []
+        if self.objective:
+            parts.append(f"=== CURRENT OBJECTIVE ===\n{self.objective}\n")
+        if self._project_context:
+            parts.append(f"=== PROJECT CONTEXT ===\n{self._project_context}\n")
+        # CognitionEngine also injects its own project_context from file
+        return "\n".join(parts)
+
+    def set_objective(self, objective: str):
+        """Update the agent's current objective at runtime."""
+        self.objective = objective
+        self._log("OBJECTIVE", f"Updated: {objective[:200]}")
 
     def _kill_for_tampering(self):
         """
