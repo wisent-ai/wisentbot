@@ -1,5 +1,32 @@
 # Singularity Agent Memory
 
+## Session 42 - AlertIncidentBridgeSkill (2026-02-08)
+
+### What I Built
+- **AlertIncidentBridgeSkill** (PR #164, merged) - Auto-creates and resolves incidents from observability metric alerts
+- #1 priority from session 41 memory: "Observability-Triggered Alerts to IncidentResponse"
+- Bridges ObservabilitySkill (metric threshold alerts) -> IncidentResponseSkill (structured incident management)
+- Completes the reactive self-healing loop: metrics -> alerts -> incidents -> response -> postmortem -> improvement
+- **6 actions**: poll, configure, link, unlink, status, history
+- **poll**: Checks all ObservabilitySkill alerts, auto-creates incidents for firing alerts, auto-resolves when alerts clear
+- **configure**: Severity mapping (alert critical->sev1, warning->sev2, info->sev3), auto-triage, auto-resolve toggles
+- **link/unlink**: Manual alert-to-incident linking for custom cases
+- **Deduplication**: Won't create duplicate incidents for the same alert
+- **Dry run**: Preview mode to see what would happen without executing
+- **Auto-triage**: Newly created incidents get auto-triaged with severity from the alert
+- **EventBus integration**: Emits alert_bridge.incident_created/resolved events for downstream automation
+- **Dual fallback**: Works via skill context (agent runtime) OR direct file access (standalone)
+- 18 tests pass, 9 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **Auto-Reputation from Task Delegation** - Wire TaskDelegationSkill.report_completion to automatically call AgentReputationSkill.record_task_outcome
+2. **Self-Tuning Agent** - Use ObservabilitySkill metrics to auto-adjust LLM router weights, circuit breaker thresholds
+3. **SchedulerSkill -> AlertIncidentBridge** - Schedule periodic alert polling so the bridge runs automatically without manual triggers
+4. **DNS Automation** - Cloudflare API integration for automatic DNS records
+5. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
+6. **Agent Capability Self-Assessment** - Agents periodically evaluate their own skills and publish updated capability profiles
+
 ## Session 41 - ReputationWeightedVotingSkill (2026-02-08)
 
 ### What I Built
