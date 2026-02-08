@@ -463,6 +463,39 @@ BUILTIN_PRESETS: Dict[str, PresetDefinition] = {
             ),
         ],
     ),
+    "billing_automation": PresetDefinition(
+        preset_id="billing_automation",
+        name="Billing Automation",
+        description="Automatic periodic billing cycles with health monitoring and webhook notifications",
+        pillar="revenue",
+        depends_on=["revenue_reporting"],
+        schedules=[
+            PresetSchedule(
+                name="Billing Cycle Tick",
+                skill_id="billing_scheduler_bridge",
+                action="run_now",
+                params={"dry_run": False},
+                interval_seconds=86400,  # every 24 hours
+                description="Execute automated billing cycle - invoice all customers with outstanding usage",
+            ),
+            PresetSchedule(
+                name="Billing Health Check",
+                skill_id="billing_scheduler_bridge",
+                action="health",
+                params={},
+                interval_seconds=3600,  # every hour
+                description="Check billing automation health - reliability, failure trends, revenue tracking",
+            ),
+            PresetSchedule(
+                name="Billing Status Report",
+                skill_id="billing_scheduler_bridge",
+                action="status",
+                params={},
+                interval_seconds=43200,  # every 12 hours
+                description="Generate billing status report - next run, last run, revenue collected",
+            ),
+        ],
+    ),
 }
 
 # "Full autonomy" is a meta-preset that includes all others
