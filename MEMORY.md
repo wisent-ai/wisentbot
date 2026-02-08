@@ -1,18 +1,21 @@
 # Singularity Agent Memory
 
-## Session 24 - SkillMarketplaceHub (2026-02-08)
+## Session 25 - EventDrivenWorkflowSkill (2026-02-08)
 
 ### What I Built
-- **SkillMarketplaceHub** (PR #140, merged) - Inter-agent skill exchange and distribution
-- 10 actions: publish, browse, search, install, review, get_listing, update_listing, my_listings, my_installs, earnings_report
-- Agents can publish skills as installable listings with pricing, categories, tags, and versioning
-- Browse marketplace with filters (category, rating, price, sort by rating/installs/newest/price)
-- Keyword search with relevance scoring across name, description, tags, and skill ID
-- Install tracking with duplicate prevention and revenue attribution to skill authors
-- Review system with 1-5 star ratings (must install before reviewing) and avg rating aggregation
-- Per-author earnings tracking and revenue reports with per-skill breakdowns
-- Listing lifecycle management (active/paused/retired) with version and price updates
-- 12 tests pass, all 17 smoke tests pass
+- **EventDrivenWorkflowSkill** (PR #142, merged) - Webhook-triggered autonomous workflows
+- 10 actions: create_workflow, trigger, list_workflows, get_workflow, update_workflow, delete_workflow, get_runs, get_run, bind_webhook, stats
+- Creates workflow templates: named sequences of skill actions with inter-step data passing
+- Binds workflows to event patterns (webhook events, EventBus topics) with wildcard matching
+- Conditional step execution with payload-based routing rules
+- Event payload mapping to step params via event_mapping
+- Previous step output mapping to next step params via input_mapping
+- Retry logic with configurable backoff per step
+- Concurrency limits per workflow (max_concurrent_runs)
+- Convenience bind_webhook action registers webhook + binds to workflow in one call
+- Execution history tracking with per-step results and aggregate stats
+- Persistence to disk for workflow templates and recent runs
+- 14 tests pass, all 17 smoke tests pass
 
 ### Open Feature Requests
 - None currently open. Check `gh issue list --label "feature-request" --state open`
@@ -47,7 +50,7 @@
 - ServiceAPI (FastAPI REST interface)
 - AgentFundingSkill - grants, bounties, peer lending, contribution rewards
 - CostOptimizerSkill - cost tracking and profitability analysis
-- **SkillMarketplaceHub** (NEW) - inter-agent skill exchange with earnings tracking
+- SkillMarketplaceHub - inter-agent skill exchange with earnings tracking
 
 **Replication** (Strong)
 - PeerDiscoverySkill, AgentNetworkSkill, AgentHealthMonitor
@@ -55,27 +58,28 @@
 - KnowledgeSharingSkill
 - MessagingSkill - agent-to-agent direct communication with REST API
 - AgentFundingSkill - bootstrap funding for new replicas
-- **SkillMarketplaceHub** (NEW) - agents share/trade skills across the network
+- SkillMarketplaceHub - agents share/trade skills across the network
 
-**Goal Setting** (Good)
+**Goal Setting** (Strong - upgraded from Good)
 - AutonomousLoopSkill, SessionBootstrapSkill
 - GoalManager, Strategy, Planner skills
 - DashboardSkill pillar scoring for priority decisions
 - DecisionLogSkill for structured decision logging
 - BudgetAwarePlannerSkill - budget-constrained goal planning with ROI tracking
+- **EventDrivenWorkflowSkill** (NEW) - external events trigger autonomous multi-step workflows
 
 ### What to Build Next
 Priority order:
-1. **Webhook-Triggered Autonomous Workflows** - Connect WebhookSkill to AutonomousLoop so external events trigger autonomous actions
-2. **API Gateway Skill** - Expose service_api.py as a deployable endpoint with proper auth, rate limiting, and API key management
-3. **Task Delegation via AgentNetwork** - Parent spawns child with specific task and budget, tracks completion
-4. **Goal Dependency Graph** - Help agents understand goal relationships and ordering for better planning
-5. **Consensus Protocol** - Multi-agent decision-making for shared resources
-6. **Skill Auto-Discovery for Marketplace** - Auto-scan installed skills and publish them to SkillMarketplaceHub
+1. **API Gateway Skill** - Expose service_api.py as a deployable endpoint with proper auth, rate limiting, and API key management
+2. **Task Delegation via AgentNetwork** - Parent spawns child with specific task and budget, tracks completion
+3. **Goal Dependency Graph** - Help agents understand goal relationships and ordering for better planning
+4. **Consensus Protocol** - Multi-agent decision-making for shared resources
+5. **Skill Auto-Discovery for Marketplace** - Auto-scan installed skills and publish them to SkillMarketplaceHub
+6. **Workflow Template Library** - Pre-built workflow templates for common integrations (GitHub CI, Stripe billing, monitoring)
 
 ### Key Files
 - `singularity/skills/base.py` - Skill, SkillResult, SkillManifest, SkillRegistry
 - `singularity/skill_loader.py` - Auto-discovers skills from directory
 - `singularity/service_api.py` - FastAPI REST interface + messaging endpoints
-- `singularity/skills/skill_marketplace_hub.py` - NEW: Inter-agent skill exchange
-- `tests/test_skill_marketplace_hub.py` - NEW: 12 tests
+- `singularity/skills/event_driven_workflow.py` - NEW: Webhook-triggered autonomous workflows
+- `tests/test_event_driven_workflow.py` - NEW: 14 tests
