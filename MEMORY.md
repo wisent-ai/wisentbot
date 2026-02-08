@@ -1,5 +1,37 @@
 # Singularity Agent Memory
 
+## Session 162 - AdaptiveCircuitThresholdsSkill (2026-02-08)
+
+### What I Built
+- **AdaptiveCircuitThresholdsSkill** (PR #237, merged) - Auto-tune circuit breaker thresholds per skill based on historical performance
+- #1 priority from session 161 MEMORY: "Adaptive Thresholds"
+- **singularity/skills/adaptive_circuit_thresholds.py**: Per-skill threshold auto-tuning:
+  - Analyze: Compute statistical profile from circuit records (failure rate mean/std, cost patterns, failure bursts, recovery times)
+  - Tune: Apply computed thresholds for a specific skill
+  - Tune All: Analyze and tune all skills with sufficient data in one call
+  - Profiles: View all skill performance profiles and computed thresholds
+  - Algorithm: Sets thresholds at baseline + N × standard_deviations (configurable sensitivity)
+  - Failure burst analysis: Computes max consecutive failure streak for consecutive threshold
+  - Recovery time analysis: Measures avg time between failure bursts for optimal cooldown
+  - Cost analysis: Sets cost/success threshold based on observed cost patterns with multiplier
+  - Auto-apply mode: Optionally apply overrides immediately after analysis
+  - get_override_for_skill() API: Designed for CircuitBreakerSkill integration
+  - Persistent profiles, overrides, and tuning history across sessions
+  - Synthesize records from summary data when raw records unavailable
+  - 8 actions: analyze, tune, tune_all, profiles, history, configure, status, reset
+- 17 new tests, all passing. 17 smoke tests pass.
+
+### Why This Matters
+Static global thresholds don't work for diverse skill portfolios. An LLM API with 10% natural failure rate needs different thresholds than a filesystem skill with 0% baseline. This skill observes each skill's actual behavior and computes statistically appropriate thresholds - the agent's safety mechanisms now self-tune based on reality. This closes the act → measure → adapt feedback loop for circuit breaker configuration.
+
+### What to Build Next
+Priority order:
+1. **Circuit Breaker Adaptive Integration** - Wire AdaptiveCircuitThresholdsSkill overrides into CircuitBreakerSkill._evaluate_circuit() so per-skill thresholds are actually used during evaluation
+2. **Revenue Goal Auto-Setting** - Auto-set revenue goals from RevenueAnalyticsDashboard forecast data
+3. **Fleet Health Monitor** - Use AgentSpawnerSkill + HealthMonitor to auto-heal unhealthy replicas
+4. **Auto-Reputation from Task Delegation** - Wire TaskDelegationSkill.report_completion to automatically call AgentReputationSkill.record_task_outcome
+5. **Circuit Sharing EventBus Integration** - Emit events when remote circuit states are imported
+
 ## Session 161 - CrossAgentCircuitSharingSkill (2026-02-08)
 
 ### What I Built
