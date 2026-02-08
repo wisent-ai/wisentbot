@@ -1,5 +1,25 @@
 # Singularity Agent Memory
 
+## Session 43 - AutoReputationBridgeSkill (2026-02-08)
+
+### What I Built
+- **AutoReputationBridgeSkill** (PR #165, merged) - Auto-updates agent reputation from task delegation outcomes
+- #1 priority from session 42 memory: "Auto-Reputation from Task Delegation"
+- Bridges TaskDelegationSkill → AgentReputationSkill: when delegations complete/fail, reputation scores update automatically
+- Completes the delegation → reputation feedback loop: delegate → work → report_completion → auto-reputation update → better delegation decisions
+- **6 actions**: poll, configure, status, history, reprocess, stats
+- **poll**: Scans completed/failed delegations, processes unprocessed ones, updates reputation via SkillContext or direct file access
+- **configure**: Set scoring weights (competence base/bonus, reliability on-time/late, cooperation bonus, failure penalties)
+- **status**: Bridge health, processed counts, pending count, config view
+- **history**: Recent reputation updates with agent filtering
+- **reprocess**: Force-reprocess a delegation (useful after reputation reset)
+- **stats**: Aggregated statistics - success rate, avg budget efficiency, on-time rate, per-agent breakdown
+- **Deduplication**: Tracks processed delegation IDs so each is only processed once
+- **Dry run**: Preview mode to see what would happen without executing
+- **Dual fallback**: Works via SkillContext (agent runtime) OR direct file access (standalone)
+- **EventBus integration**: Emits reputation_bridge.success/failure events for downstream automation
+- **Scoring logic**: Success → competence +2..+5 (scaled by budget efficiency), reliability +2 (on-time) or -1 (late), cooperation +1. Failure → competence -3, reliability -2
+- 16 tests pass
 ## Session 38 - SelfTuningSkill (2026-02-08)
 
 ### What I Built
@@ -61,6 +81,11 @@ Priority order:
 ### What to Build Next
 Priority order:
 1. **Self-Tuning Agent** - Use ObservabilitySkill metrics to auto-adjust LLM router weights, circuit breaker thresholds
+2. **SchedulerSkill → AutoReputationBridge** - Schedule periodic polling so reputation updates run automatically
+3. **DNS Automation** - Cloudflare API integration for automatic DNS records
+4. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
+5. **Agent Capability Self-Assessment** - Agents periodically evaluate their own skills and publish updated capability profiles
+6. **Multi-Agent Workflow Orchestrator** - Compose complex workflows across multiple agents with dependency tracking
 2. **SchedulerSkill -> AlertIncidentBridge** - Schedule periodic alert polling so the bridge runs automatically without manual triggers
 3. **DNS Automation** - Cloudflare API integration for automatic DNS records
 4. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
