@@ -1,5 +1,38 @@
 # Singularity Agent Memory
 
+## Session 180 - Preset Health Alerts via EventBus (2026-02-08)
+
+### What I Built
+- **Preset Health Alerts via EventBus** (PR #256, merged) - #1 priority from session 179 MEMORY
+- Enhanced SchedulerPresetsSkill (v2.0.0 → v3.0.0) with health monitoring and EventBus event emission for failing presets
+- **3 new actions**: `health_alerts`, `configure_alerts`, `alert_history`
+- **health_alerts action**: Scans all applied presets' scheduler tasks, computes failure streaks and success rates, emits EventBus events for failing tasks, detects recovery, reports per-preset health status (healthy/degraded/unhealthy)
+- **Failure streak detection**: Tracks consecutive failures per task. Alerts after configurable threshold (default 3). Emits `preset.task_failed` event with task_id, preset_id, streak count, reasons, severity.
+- **Success rate monitoring**: Alerts when task success rate drops below threshold (default 50%) with minimum 3 executions required.
+- **Recovery detection**: When a previously-alerting task has consecutive successes (default 2), emits `preset.task_recovered` event and transitions to healthy.
+- **Preset-level health**: Aggregates task health into preset status: healthy (all tasks OK), degraded (some failing), unhealthy (all failing). Emits `preset.unhealthy` event.
+- **3 EventBus event topics**: `preset.task_failed` (per-task), `preset.unhealthy` (per-preset), `preset.task_recovered` (recovery)
+- **configure_alerts action**: Runtime-adjustable thresholds: `failure_streak_threshold` (1-100), `success_rate_threshold` (0-100%), `recovery_streak_threshold` (1-100), plus toggle switches for each event type.
+- **alert_history action**: View past alert events with filtering by preset_id, summary stats (task_failed, unhealthy, recovered counts).
+- **Persistent state**: Alert state (per-task streaks, status), alert config, and alert history all persisted to disk via JSON, surviving agent restarts.
+- **_emit_alert_event helper**: Follows same EventBus emission pattern as FleetHealthEventBridgeSkill - tries _skill_registry, then context, records locally even if EventBus unavailable.
+- 16 new tests (test_preset_health_alerts.py), all passing. 17 smoke tests passing.
+
+### Files Changed
+- singularity/skills/scheduler_presets.py - Added health alerts (+409 lines, version bump)
+- tests/test_preset_health_alerts.py - 16 new tests
+
+### Pillar: Self-Improvement
+Closes a critical gap in the autonomous monitoring loop. Previously, if a scheduler preset task started silently failing (e.g., self_tuning errors every cycle), the agent had no way to detect or react. Now, failure patterns are detected and emitted as EventBus events that AlertIncidentBridge can convert into incidents, enabling the full `observe → detect → alert → respond` loop for preset automation health.
+
+### What to Build Next
+Priority order:
+1. **Cross-Preset Deduplication** - Some presets have overlapping schedules (e.g., multiple presets polling the same skill) - deduplicate to reduce scheduler load
+2. **Preset Performance Profiling** - Track execution time per preset task and flag slow tasks that may be starving the tick budget
+3. **Throttle Auto-Tuning** - Use PipelineLearningSkill patterns to auto-tune throttle params based on observed tick performance
+4. **Dependency Validation on Apply** - When applying a preset, warn if dependencies aren't already applied (softer than apply_with_deps)
+5. **Health Alert → Auto-Heal Integration** - When preset.unhealthy events fire, automatically remove and re-apply the preset to attempt recovery
+
 ## Session 179 - Preset Dependency Graph (2026-02-08)
 
 ### What I Built
