@@ -1,5 +1,36 @@
 # Singularity Agent Memory
 
+## Session 32 - WorkflowTemplateLibrarySkill (2026-02-08)
+
+### What I Built
+- **WorkflowTemplateLibrarySkill** (PR #151, merged) - Pre-built, parameterizable workflow templates for common automation patterns
+- #1 priority from session 31 memory (Workflow Template Library)
+- 8 actions: browse, get, instantiate, register, search, rate, popular, export
+- **10 built-in templates** across 6 categories:
+  - CI/CD: GitHub PR Auto-Review, Deploy on Merge
+  - Billing: Stripe Payment Processing, Usage Threshold Alert
+  - Monitoring: Service Health Check, Automated Incident Response
+  - Onboarding: Customer Onboarding Flow
+  - Content: Content Generation Pipeline
+  - DevOps: Auto-Scaling Decision, Backup Verification
+- **Instantiate** - Create a workflow from a template with parameter validation, defaults, and step resolution
+- **Register** - Agent-created custom templates for reusable patterns
+- **Search** - Full-text search across template names, descriptions, and tags with relevance scoring
+- **Rate** - 1-5 rating system with per-agent deduplication
+- **Popular** - Popularity ranking by use count
+- **Export** - Export templates as standalone workflow definitions
+- 11 tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **API Gateway Integration with ServiceAPI** - Wire APIGatewaySkill into service_api.py so incoming requests are validated via check_access
+2. **Consensus-Driven Task Assignment** - Wire ConsensusProtocolSkill into TaskDelegation for democratic task assignment
+3. **Agent Reputation System** - Track agent reliability scores for weighted voting in consensus and task delegation
+4. **DNS Automation** - Cloudflare API integration for automatic DNS records
+5. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
+6. **Template-to-EventWorkflow Bridge** - Wire WorkflowTemplateLibrary instantiation into EventDrivenWorkflowSkill for one-click template deployment
+7. **Delegation Dashboard** - Real-time view of all active delegations across the agent network
+
 ## Session 31 - SkillAutoPublisherSkill (2026-02-08)
 
 ### What I Built
@@ -12,15 +43,6 @@
 - **Sync** - Full sync: publishes new and updates changed skills in one operation
 - **Pricing Rules** - Configurable default/category/skill-specific pricing, free categories, exclude lists
 - 18 tests pass
-
-### What to Build Next
-Priority order:
-1. **Workflow Template Library** - Pre-built workflow templates for common integrations
-2. **API Gateway Integration with ServiceAPI** - Wire APIGatewaySkill into service_api.py
-3. **Consensus-Driven Task Assignment** - Wire ConsensusProtocolSkill into TaskDelegation
-4. **Agent Reputation System** - Track agent reliability scores for weighted voting
-5. **DNS Automation** - Cloudflare API integration for automatic DNS records
-6. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics
 
 ## Session 30 - ConsensusProtocolSkill (2026-02-08)
 
@@ -83,6 +105,7 @@ Priority order:
 - APIGatewaySkill - API key management, rate limiting, per-key usage tracking and billing
 - EventDrivenWorkflowSkill - automate service delivery on external triggers
 - PublicServiceDeployerSkill - deploy Docker services with public URLs, TLS, and billing
+- **WorkflowTemplateLibrarySkill** - 10 pre-built workflow templates for instant automation deployment (session 32, NEW)
 
 **Replication** (Very Strong)
 - PeerDiscoverySkill, AgentNetworkSkill, AgentHealthMonitor
@@ -109,6 +132,8 @@ Priority order:
 - `singularity/skills/base.py` - Skill, SkillResult, SkillManifest, SkillRegistry
 - `singularity/skill_loader.py` - Auto-discovers skills from directory
 - `singularity/service_api.py` - FastAPI REST interface + messaging endpoints
+- `singularity/skills/workflow_templates.py` - Pre-built workflow templates for automation (session 32)
+- `singularity/skills/skill_auto_publisher.py` - Auto-publish skills to marketplace (session 31)
 - `singularity/skills/consensus.py` - Consensus protocol for multi-agent decisions (session 30)
 - `singularity/skills/goal_graph.py` - Goal graph with parallel paths, cascade, suggest_next (session 29)
 - `singularity/skills/goal_dependency_graph.py` - Goal dependency graph analysis (session 28)
