@@ -78,6 +78,7 @@ from .skills.skill_analyzer import SkillDependencyAnalyzer
 from .skills.workflow_analytics import WorkflowAnalyticsSkill
 from .skills.nl_router import NaturalLanguageRouter
 from .skills.decision_log import DecisionLogSkill
+from .skills.self_testing import SelfTestingSkill
 
 
 
@@ -165,6 +166,7 @@ class AutonomousAgent:
         WorkflowAnalyticsSkill,
         NaturalLanguageRouter,
         DecisionLogSkill,
+        SelfTestingSkill,
     ]
 
 
