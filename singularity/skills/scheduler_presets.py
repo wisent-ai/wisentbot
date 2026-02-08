@@ -16,6 +16,10 @@ this skill provides one-command setup of common automation patterns:
 - Revenue goals: auto-set/track/adjust revenue goals from forecast data
 - Experiment management: auto-conclude experiments and review learnings
 - Circuit sharing monitor: monitor cross-agent circuit states and fleet alerts
+- Goal stall monitoring: periodic stall detection with automated alerts for stuck goals
+- Revenue goal evaluation: periodic revenue goal status checks, reports, and history reviews
+- Dashboard auto-check: periodic loop iteration dashboard health checks and alert scanning
+- Fleet health auto-heal: periodic fleet health monitoring with automatic heal triggers
 - Full autonomy: all presets at once for fully autonomous operation
 
 Each preset is a named collection of scheduler entries with sensible defaults
@@ -328,6 +332,126 @@ BUILTIN_PRESETS: Dict[str, PresetDefinition] = {
                 params={},
                 interval_seconds=600,  # every 10 min
                 description="Analyze shared circuit states fleet-wide and alert if majority are open",
+            ),
+        ],
+    ),
+    "goal_stall_monitoring": PresetDefinition(
+        preset_id="goal_stall_monitoring",
+        name="Goal Stall Monitoring",
+        description="Periodic stall detection for active goals - emit alerts when goals haven't progressed",
+        pillar="goal_setting",
+        schedules=[
+            PresetSchedule(
+                name="Goal Stall Check",
+                skill_id="goal_progress_events",
+                action="stall_check",
+                params={},
+                interval_seconds=14400,  # every 4 hours
+                description="Detect goals that haven't progressed within threshold and emit stall events",
+            ),
+            PresetSchedule(
+                name="Goal Progress Monitor",
+                skill_id="goal_progress_events",
+                action="monitor",
+                params={},
+                interval_seconds=1800,  # every 30 min
+                description="Monitor active goals for status changes and emit progress events",
+            ),
+        ],
+    ),
+    "revenue_goal_evaluation": PresetDefinition(
+        preset_id="revenue_goal_evaluation",
+        name="Revenue Goal Evaluation",
+        description="Periodic revenue goal evaluation - assess performance, track progress, auto-adjust targets",
+        pillar="revenue",
+        schedules=[
+            PresetSchedule(
+                name="Revenue Goal Status",
+                skill_id="revenue_goal_auto_setter",
+                action="status",
+                params={},
+                interval_seconds=1800,  # every 30 min
+                description="Check current status of all active revenue goals",
+            ),
+            PresetSchedule(
+                name="Revenue Goal Report",
+                skill_id="revenue_goal_auto_setter",
+                action="report",
+                params={},
+                interval_seconds=7200,  # every 2 hours
+                description="Generate revenue goal performance report with trends",
+            ),
+            PresetSchedule(
+                name="Revenue History Review",
+                skill_id="revenue_goal_auto_setter",
+                action="history",
+                params={},
+                interval_seconds=43200,  # every 12 hours
+                description="Review revenue goal history for pattern analysis",
+            ),
+        ],
+    ),
+    "dashboard_auto_check": PresetDefinition(
+        preset_id="dashboard_auto_check",
+        name="Dashboard Auto-Check",
+        description="Periodic loop iteration dashboard checks - detect degraded health and emit alerts",
+        pillar="operations",
+        schedules=[
+            PresetSchedule(
+                name="Dashboard Latest Check",
+                skill_id="loop_iteration_dashboard",
+                action="latest",
+                params={},
+                interval_seconds=600,  # every 10 min
+                description="Fetch latest iteration dashboard to detect issues early",
+            ),
+            PresetSchedule(
+                name="Dashboard Trend Analysis",
+                skill_id="loop_iteration_dashboard",
+                action="trends",
+                params={},
+                interval_seconds=3600,  # every hour
+                description="Analyze iteration trends for success rate and performance degradation",
+            ),
+            PresetSchedule(
+                name="Subsystem Health Check",
+                skill_id="loop_iteration_dashboard",
+                action="subsystem_health",
+                params={},
+                interval_seconds=1800,  # every 30 min
+                description="Score each subsystem's health and detect weak components",
+            ),
+            PresetSchedule(
+                name="Dashboard Alert Scan",
+                skill_id="loop_iteration_dashboard",
+                action="alerts",
+                params={},
+                interval_seconds=900,  # every 15 min
+                description="Scan for degradation patterns - low success rate, slow iterations, failure streaks",
+            ),
+        ],
+    ),
+    "fleet_health_auto_heal": PresetDefinition(
+        preset_id="fleet_health_auto_heal",
+        name="Fleet Health Auto-Heal",
+        description="Periodic fleet health monitoring with automatic heal triggers and fleet-wide checks",
+        pillar="replication",
+        schedules=[
+            PresetSchedule(
+                name="Fleet Health Monitor",
+                skill_id="fleet_health_events",
+                action="monitor",
+                params={},
+                interval_seconds=300,  # every 5 min
+                description="Monitor fleet for health changes and emit events for heal/scale/replace actions",
+            ),
+            PresetSchedule(
+                name="Fleet Health Check",
+                skill_id="fleet_health_events",
+                action="fleet_check",
+                params={},
+                interval_seconds=600,  # every 10 min
+                description="Proactive fleet-wide health check - detect critical conditions like capacity drops",
             ),
         ],
     ),
@@ -1174,14 +1298,21 @@ class SchedulerPresetsSkill(Skill):
     def _preset_priority(self, preset_id: str) -> int:
         """Priority ranking for recommendations (lower = higher priority)."""
         priority_order = [
-            "health_monitoring",   # 1 - foundation
-            "alert_polling",       # 2 - automated response
-            "self_tuning",         # 3 - self-optimization
-            "feedback_loop",       # 4 - learning
-            "self_assessment",     # 5 - self-awareness
-            "reputation_polling",  # 6 - multi-agent
-            "revenue_reporting",   # 7 - business
-            "knowledge_sync",     # 8 - sharing
+            "health_monitoring",         # 1 - foundation
+            "alert_polling",             # 2 - automated response
+            "dashboard_auto_check",      # 3 - observability
+            "goal_stall_monitoring",     # 4 - goal health
+            "self_tuning",               # 5 - self-optimization
+            "feedback_loop",             # 6 - learning
+            "self_assessment",           # 7 - self-awareness
+            "revenue_goal_evaluation",   # 8 - revenue tracking
+            "reputation_polling",        # 9 - multi-agent
+            "revenue_reporting",         # 10 - business
+            "revenue_goals",             # 11 - revenue goals
+            "fleet_health_auto_heal",    # 12 - fleet health
+            "circuit_sharing_monitor",   # 13 - circuit sharing
+            "knowledge_sync",            # 14 - sharing
+            "experiment_management",     # 15 - experiments
         ]
         try:
             return priority_order.index(preset_id)
