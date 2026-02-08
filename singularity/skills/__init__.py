@@ -50,6 +50,7 @@ from .checkpoint_comparison import CheckpointComparisonAnalyticsSkill
 from .revenue_analytics_dashboard import RevenueAnalyticsDashboardSkill
 from .ssl_service_hosting_bridge import SSLServiceHostingBridgeSkill
 from .serverless_service_hosting_bridge import ServerlessServiceHostingBridgeSkill
+from .pipeline_planner import PipelinePlannerSkill
 
 __all__ = [
     # Base
@@ -104,4 +105,5 @@ __all__ = [
     "SSLServiceHostingBridgeSkill",
     "ServerlessServiceHostingBridgeSkill",
     "AgentReflectionSkill",
+    "PipelinePlannerSkill",
 ]
