@@ -15,8 +15,10 @@ and is the foundation for agent-to-agent economic interaction.
 Pillars served: Replication (agent coordination), Revenue (service negotiation)
 """
 
+import hashlib
 import json
 import os
+import time
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -31,6 +33,97 @@ MAX_MESSAGES_PER_INBOX = 1000
 MAX_MESSAGE_BODY_LENGTH = 50000
 MAX_CONVERSATIONS = 500
 MESSAGE_TTL_HOURS = 168  # 7 days default
+
+# ── Spam Guard defaults ──────────────────────────────────
+SPAM_RATE_LIMIT = 10          # max messages per sender per window
+SPAM_RATE_WINDOW = 60         # rate limit window in seconds
+SPAM_DUPLICATE_WINDOW = 300   # duplicate detection window in seconds
+SPAM_MAX_DUPLICATES = 2       # max identical messages within duplicate window
+
+
+class SpamGuard:
+    """
+    Lightweight spam protection for agent messaging.
+
+    Provides two layers of protection:
+    1. Per-sender rate limiting — prevents message flooding
+    2. Duplicate detection — catches identical repeated messages
+
+    All state is in-memory (resets on restart), keeping file I/O minimal.
+    Configurable via constructor parameters.
+    """
+
+    def __init__(
+        self,
+        rate_limit: int = SPAM_RATE_LIMIT,
+        rate_window: int = SPAM_RATE_WINDOW,
+        duplicate_window: int = SPAM_DUPLICATE_WINDOW,
+        max_duplicates: int = SPAM_MAX_DUPLICATES,
+    ):
+        self.rate_limit = rate_limit
+        self.rate_window = rate_window
+        self.duplicate_window = duplicate_window
+        self.max_duplicates = max_duplicates
+        # sender_id -> list of timestamps
+        self._send_times: Dict[str, List[float]] = {}
+        # sender_id -> list of (content_hash, timestamp)
+        self._content_hashes: Dict[str, List[tuple]] = {}
+
+    @staticmethod
+    def _hash_content(content: str) -> str:
+        """Create a short hash of message content for dedup."""
+        return hashlib.sha256(content.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+    def _cleanup(self, sender_id: str, now: float) -> None:
+        """Remove expired entries for a sender."""
+        if sender_id in self._send_times:
+            cutoff = now - self.rate_window
+            self._send_times[sender_id] = [
+                t for t in self._send_times[sender_id] if t > cutoff
+            ]
+        if sender_id in self._content_hashes:
+            cutoff = now - self.duplicate_window
+            self._content_hashes[sender_id] = [
+                (h, t) for h, t in self._content_hashes[sender_id] if t > cutoff
+            ]
+
+    def check(self, sender_id: str, content: str) -> Optional[str]:
+        """
+        Check if a message should be blocked.
+
+        Returns None if allowed, or a string describing why it was blocked.
+        """
+        now = time.time()
+        self._cleanup(sender_id, now)
+
+        # 1. Rate limit check
+        timestamps = self._send_times.get(sender_id, [])
+        if len(timestamps) >= self.rate_limit:
+            oldest = min(timestamps) if timestamps else now
+            reset_in = int(self.rate_window - (now - oldest))
+            return (
+                f"Rate limit exceeded: {self.rate_limit} messages per "
+                f"{self.rate_window}s. Try again in {max(reset_in, 1)}s."
+            )
+
+        # 2. Duplicate detection
+        content_hash = self._hash_content(content)
+        hashes = self._content_hashes.get(sender_id, [])
+        dup_count = sum(1 for h, _ in hashes if h == content_hash)
+        if dup_count >= self.max_duplicates:
+            return (
+                f"Duplicate message blocked: identical content sent "
+                f"{dup_count} time(s) in the last {self.duplicate_window}s."
+            )
+
+        return None  # Message is allowed
+
+    def record(self, sender_id: str, content: str) -> None:
+        """Record a successfully sent message for future checks."""
+        now = time.time()
+        self._send_times.setdefault(sender_id, []).append(now)
+        content_hash = self._hash_content(content)
+        self._content_hashes.setdefault(sender_id, []).append((content_hash, now))
 
 
 def _now_iso() -> str:
@@ -100,6 +193,13 @@ class MessagingSkill(Skill):
         self._data_path = MESSAGES_FILE
         if credentials and "data_path" in credentials:
             self._data_path = Path(credentials["data_path"])
+        # Spam protection — configurable via credentials
+        spam_cfg = {}
+        if credentials:
+            for key in ("rate_limit", "rate_window", "duplicate_window", "max_duplicates"):
+                if key in credentials:
+                    spam_cfg[key] = int(credentials[key])
+        self._spam_guard = SpamGuard(**spam_cfg)
 
     @property
     def manifest(self) -> SkillManifest:
@@ -352,6 +452,15 @@ class MessagingSkill(Skill):
                 message="message_type must be: direct, service_request, or broadcast",
             )
 
+        # Spam guard check
+        spam_reason = self._spam_guard.check(from_id, content)
+        if spam_reason:
+            return SkillResult(
+                success=False,
+                message=f"Message blocked by spam guard: {spam_reason}",
+                data={"blocked": True, "reason": spam_reason},
+            )
+
         # Create or join conversation
         if not conversation_id:
             conversation_id = f"conv_{uuid.uuid4().hex[:12]}"
@@ -409,6 +518,9 @@ class MessagingSkill(Skill):
         data["stats"]["total_sent"] = data["stats"].get("total_sent", 0) + 1
 
         _save_data(data, self._data_path)
+
+        # Record successful send for spam tracking
+        self._spam_guard.record(from_id, content)
 
         return SkillResult(
             success=True,
