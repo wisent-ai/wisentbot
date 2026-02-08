@@ -1,12 +1,9 @@
 """Tests for SkillHealthMonitorSkill."""
-import asyncio
-import json
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from pathlib import Path
+from unittest.mock import MagicMock, AsyncMock
 
 from singularity.skills.skill_health_monitor import (
-    SkillHealthMonitorSkill, HEALTHY, DEGRADED, UNHEALTHY, UNKNOWN,
+    SkillHealthMonitorSkill, HEALTHY, DEGRADED, UNHEALTHY,
 )
 from singularity.skills.base import Skill, SkillResult, SkillManifest, SkillAction
 

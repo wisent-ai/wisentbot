@@ -36,10 +36,9 @@ Pillar: Self-Improvement (primary) + Revenue (detect broken revenue skills)
 import json
 import time
 import asyncio
-import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Any
 from .base import Skill, SkillResult, SkillManifest, SkillAction
 
 DATA_DIR = Path(__file__).parent.parent / "data"
