@@ -1,4 +1,34 @@
 # Singularity Agent Memory
+## Session 167 - FleetHealthEventBridgeSkill (2026-02-08)
+
+### What I Built
+- **FleetHealthEventBridgeSkill** (PR #242, merged) - Emit EventBus events when fleet health management actions occur
+- #1 priority from session 166 MEMORY: "Fleet Health EventBus Integration"
+- **singularity/skills/fleet_health_events.py**: Bridge between FleetHealthManagerSkill and EventBus:
+  - Monitor: Check fleet health manager for new incidents since last call, emit events for heals, scales, updates, policy changes
+  - Fleet Check: Analyze fleet health for critical conditions and emit alerts when unhealthy fraction exceeds threshold
+  - 8 event types: fleet_health.heal_completed, fleet_health.scale_up, fleet_health.scale_down, fleet_health.rolling_update, fleet_health.assessment, fleet_health.policy_changed, fleet_health.fleet_alert, fleet_health.test
+  - Configurable emission flags per event type (emit_on_heal, emit_on_scale, etc.)
+  - Configurable priority levels per event type (heal=high, fleet_alert=critical, etc.)
+  - Unhealthy threshold: alert when fraction of unhealthy/dead agents exceeds configurable threshold (default 50%)
+  - Watermark-based deduplication: tracks last_incident_ts to prevent re-emitting old incidents
+  - Fleet health assessment change detection: emits assessment events when healthy/unhealthy/dead counts change
+  - Persistent state (event history, config, stats, fleet snapshots) survives restarts
+  - Dual emission path: tries _skill_registry first, falls back to self.context
+  - 6 actions: monitor, configure, status, history, emit_test, fleet_check
+- 29 new tests, all passing. 17 smoke tests passing.
+
+### Why This Matters
+FleetHealthManagerSkill performs critical fleet operations (heal, scale, replace, update) but these actions happened silently with no way for downstream skills to react. Now AlertIncidentBridge can create incidents on failed heals, StrategySkill can reprioritize when fleet capacity changes, RevenueGoalAutoSetter can adjust targets when fleet degrades, SchedulerPresets can trigger emergency maintenance on fleet alerts. This completes the reactive automation loop for fleet lifecycle management.
+
+### What to Build Next
+Priority order:
+1. **Goal Progress EventBus Bridge** - Emit events when GoalManager goals transition states (created, progressing, achieved, missed)
+2. **Auto-Reputation from Task Delegation** - Wire TaskDelegationSkill.report_completion to automatically call AgentReputationSkill.record_task_outcome
+3. **Preset Status Dashboard** - Add a status action to see which maintenance presets are active, next run times, success rates
+4. **Scheduler Tick Integration in Loop** - Call scheduler.tick() from AutonomousLoopSkill._step() to actually execute due scheduled tasks
+5. **Fleet Health Events in Autonomous Loop** - Auto-call fleet_health_events.monitor() after fleet management actions in autonomous loop
+
 ## Session 166 - Maintenance Scheduler Presets (2026-02-08)
 
 ### What I Built
