@@ -84,6 +84,7 @@ from .skills.performance_optimizer import PerformanceOptimizerSkill
 from .skills.prompt_evolution import PromptEvolutionSkill
 from .skills.nl_router import NaturalLanguageRouter
 from .skills.decision_log import DecisionLogSkill
+from .skills.decision_replay import DecisionReplaySkill
 from .skills.error_recovery import ErrorRecoverySkill
 from .skills.self_testing import SelfTestingSkill
 from .skills.skill_profiler import SkillPerformanceProfiler
@@ -189,6 +190,7 @@ PerformanceOptimizerSkill,
         PromptEvolutionSkill,
         NaturalLanguageRouter,
         DecisionLogSkill,
+        DecisionReplaySkill,
         ErrorRecoverySkill,
         SelfTestingSkill,
         SkillPerformanceProfiler,

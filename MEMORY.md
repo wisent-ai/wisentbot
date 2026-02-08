@@ -1,5 +1,43 @@
 # Singularity Agent Memory
 
+## Session 185 - DecisionReplaySkill (2026-02-08)
+
+### What I Built
+- **DecisionReplaySkill** (PR #TBD, merged) - Counterfactual analysis of past decisions using current learned rules
+- 6 actions: replay (re-evaluate a specific past decision with current rules), batch_replay (replay multiple decisions and compare outcomes), impact_report (aggregate learning quality analysis), find_reversals (find decisions where current rules would choose differently), timeline (track decision quality trend over time), what_if (replay with custom hypothetical rules)
+- Rule relevance scoring: keyword overlap, skill_id matching, choice/alternative matching, category alignment, tag overlap
+- Support vs contradiction analysis: calculates weighted support/contradict scores for each decision using pattern matching
+- Learning quality measurement: computes improvement rate (reversals that fix past failures vs those that undo successes)
+- Impact reports: identifies most impactful rules by usage count across decisions
+- Timeline trend analysis: compares early vs recent reversal rates to detect improving/declining/stable trends
+- What-if analysis: compare custom hypothetical rules against actual learned rules on the same decision
+- Persistent storage: JSON-backed replays (max 1000) and reports (max 100)
+- Registered in autonomous_agent.py skill list
+- 23 new tests (test_decision_replay.py), all passing. 17 smoke tests passing.
+
+### Files Changed
+- singularity/skills/decision_replay.py - New skill (584 lines)
+- tests/test_decision_replay.py - 23 new tests
+- singularity/autonomous_agent.py - Added import and registration
+
+### Pillar: Self-Improvement
+This is the "backtesting" layer for agent learning. Previously, the agent could learn rules (LearningDistillationSkill) and consult them during decisions (AutonomousLoop integration), but had NO way to verify if its learning actually improved decision quality. DecisionReplaySkill closes this gap by replaying past decisions with current rules and measuring:
+1. How many past decisions would change (reversal rate)
+2. How many changes would fix past failures (improvement rate)
+3. How many changes would undo past successes (regression rate)
+4. Which rules have the most impact across decisions
+5. Whether decision quality is trending better or worse over time
+
+### What to Build Next
+Priority order:
+1. **Rule Conflict Detection** - Detect when distilled rules contradict each other and resolve via confidence comparison
+2. **Decision Replay -> Autonomous Loop Integration** - Wire replay analysis into LEARN phase to auto-weaken rules causing regressions
+3. **Cross-Preset Deduplication** - Some presets have overlapping schedules - deduplicate to reduce scheduler load
+4. **Multi-Currency Support** - Extend billing pipeline with currency conversion rates
+5. **Billing Alert Integration** - Auto-create alerts when billing health degrades via alert_incident_bridge
+6. **Revenue Forecasting Dashboard** - Wire billing forecast data into loop iteration dashboard
+
+
 ## Session 184 - BillingSchedulerBridgeSkill (2026-02-08)
 
 ### What I Built
