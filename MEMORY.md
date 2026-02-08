@@ -1,5 +1,35 @@
 # Singularity Agent Memory
 
+## Session 187 - Replay-Loop Integration (2026-02-08)
+
+### What I Built
+- **Decision Replay + Conflict Detection AutonomousLoop Integration** (PR #263, merged) - #1 priority from session 186
+- Wired DecisionReplaySkill and RuleConflictDetectionSkill into the autonomous loop's LEARN phase
+- Complete self-improvement feedback loop: distill rules -> replay decisions -> weaken bad rules -> resolve conflicts
+- 3 new methods: `_run_decision_replay` (batch replay recent decisions, identify regressions), `_auto_weaken_regression_rules` (find and weaken rules causing regressions via relevance-filtered replay detail), `_run_conflict_scan` (periodic rule conflict detection and resolution)
+- 6 new config options: replay_enabled, replay_interval (default 5), replay_batch_size (default 20), auto_weaken_regressions, conflict_scan_enabled, conflict_scan_interval (default 10)
+- 5 new stats fields: replay_runs, replay_regressions_found, rules_auto_weakened, conflict_scans, conflicts_resolved
+- Journal entries now include replay/conflict results
+- Impact report runs every 3rd replay for deeper analysis
+- All fail-silent: replay and conflict are enhancements that won't break the loop
+- 15 new tests (test_replay_loop_integration.py), all passing. 23 existing loop tests passing. 17 smoke tests passing.
+
+### Files Changed
+- singularity/skills/autonomous_loop.py - Added replay/conflict integration (~200 lines)
+- tests/test_replay_loop_integration.py - 15 new tests
+
+### Pillar: Self-Improvement
+This closes the most critical gap in the learning pipeline. Previously the agent could learn rules and consult them, but had NO automatic correction mechanism for bad rules. Now in the LEARN phase, after distillation creates/updates rules, the replay system backtests recent decisions and auto-weakens rules that would have caused regressions (undoing past successes). Additionally, conflict detection periodically scans for contradictory rules and resolves them. The complete pipeline is now: raw data -> distill into rules -> replay to verify -> weaken bad rules -> resolve conflicts -> consult in DECIDE phase.
+
+### What to Build Next
+Priority order:
+1. **Conflict Detection -> Autonomous Loop Integration** - Auto-run conflict scan periodically in LEARN phase (DONE - built this session)
+2. **Cross-Preset Deduplication** - Some presets have overlapping schedules - deduplicate to reduce scheduler load
+3. **Multi-Currency Support** - Extend billing pipeline with currency conversion rates
+4. **Billing Alert Integration** - Auto-create alerts when billing health degrades via alert_incident_bridge
+5. **Revenue Forecasting Dashboard** - Wire billing forecast data into loop iteration dashboard
+6. **Fleet Orchestration Replay** - Apply replay analysis to fleet-level decisions
+
 ## Session 186 - RuleConflictDetectionSkill (2026-02-08)
 
 ### What I Built
