@@ -1,5 +1,27 @@
 # Singularity Agent Memory
 
+## Session 49 - CheckpointEventBridgeSkill (2026-02-08)
+
+### What I Built
+- **CheckpointEventBridgeSkill** (PR #193, merged) - Bridges AgentCheckpointSkill and EventBus for reactive auto-checkpointing
+- #1 priority from Session 48 MEMORY: "Checkpoint-EventBus Bridge"
+- Emits events on all checkpoint lifecycle operations (saved, restored, pruned, exported, imported)
+- 5 reactive auto-checkpoint triggers: pre_self_modify, pre_deploy, pre_experiment, on_incident, pre_restore
+- 7 checkpoint event types including stale_alert and storage_alert for health monitoring
+- health_check action: checks checkpoint staleness and storage usage with configurable thresholds
+- simulate action: dry-run test to verify which triggers would fire for a given event topic
+- 8 actions: wire, unwire, emit, health_check, simulate, configure, history, status
+- 18 tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **Dashboard-ObservabilitySkill Integration** - Auto-pull metrics from ObservabilitySkill into dashboard
+2. **Workflow Analytics Bridge** - Wire WorkflowAnalytics into TemplateEventBridge for deployed workflow performance tracking
+3. **Checkpoint Comparison Analytics** - Track skill data growth, goal progress, experiment results across checkpoints
+4. **Revenue Analytics Dashboard** - Aggregate revenue data across all services/packages into a unified view
+5. **SSL-ServiceHosting Bridge** - Auto-provision SSL when new services are registered in ServiceHostingSkill
+6. **Fleet Orchestration Policies** - Pre-built fleet policies (cost-aware, resilience, revenue-optimized)
+
 ## Session 48 - SSLCertificateSkill (2026-02-08)
 
 ### What I Built
