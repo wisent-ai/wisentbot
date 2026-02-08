@@ -1,24 +1,12 @@
 # Singularity Agent Memory
 
-## Session 139 - WorkflowTemplateBridgeSkill (2026-02-08)
+## Session 44 - TemplateEventBridgeSkill (2026-02-08)
 
 ### What I Built
-- **WorkflowTemplateBridgeSkill** (PR #183, merged) - Bridge between WorkflowTemplateLibrary and EventDrivenWorkflowSkill
-- Fills #1 priority from previous sessions: "Template-to-EventWorkflow Bridge"
-- Without this bridge, templates were just data — they couldn't be triggered, bound to events, or executed
-- **8 actions**: deploy, bind, undeploy, list, status, redeploy, quick_deploy, catalog
-- **deploy**: Instantiate a template from the library and register it as a live event-driven workflow
-- **bind**: Add event bindings to a deployed template (webhooks, EventBus topics, scheduled triggers)
-- **undeploy**: Remove a deployed template from the workflow engine
-- **list**: See all deployed templates and their status (active/stopped)
-- **status**: Get execution stats for a deployed template
-- **redeploy**: Update a deployed template with new parameters (tear down + recreate)
-- **quick_deploy**: Browse + instantiate + deploy in one step, with optional event binding
-- **catalog**: Show templates available for deployment with deployed/available counts
-- Converts template step format ("skill"/"action"/"params_from") to EventDrivenWorkflow format ("skill_id"/"action"/"params"/"input_mapping")
-- Handles inter-step references (step.0.diff → input_mapping format)
-- Persistent deployment tracking via JSON storage
-- 17 tests pass, 17 smoke tests pass
+- **WorkflowTemplateBridgeSkill** (PR #183, merged) - Bridge between WorkflowTemplateLibrary and EventDrivenWorkflowSkill (8 actions: deploy, bind, undeploy, list, status, redeploy, quick_deploy, catalog)
+- **TemplateEventBridgeSkill** (PR #182, merged) - Extended bridge with batch deploy, preview, sync, and goal-based suggestions (7 actions: deploy, deploy_batch, preview, sync, list, undeploy, suggest)
+- Together these two skills fully close the Template-to-EventWorkflow gap (#1 priority from previous sessions)
+- 16+17 tests pass, 17 smoke tests pass
 
 ### What to Build Next
 Priority order:
@@ -27,7 +15,8 @@ Priority order:
 3. **Fleet Health Monitor** - Use AgentSpawnerSkill + HealthMonitor to auto-heal unhealthy replicas
 4. **SSL/Certificate Management** - Auto-provision SSL certs for deployed services
 5. **Dashboard-ObservabilitySkill Integration** - Auto-pull metrics from ObservabilitySkill into dashboard
-6. **Workflow Template Auto-Deploy** - Auto-deploy popular templates on agent startup
+6. **Workflow Analytics Bridge** - Wire WorkflowAnalytics into TemplateEventBridge for deployed workflow performance tracking
+7. **Workflow Template Auto-Deploy** - Auto-deploy popular templates on agent startup
 
 ## Session 43 - ServiceMonitorSkill (2026-02-08)
 
