@@ -104,6 +104,7 @@ from .skills.reflection_event_bridge import ReflectionEventBridgeSkill
 from .skills.database import DatabaseSkill
 from .skills.http_client import HTTPClientSkill
 from .skills.http_revenue_bridge import HTTPRevenueBridgeSkill
+from .skills.database_revenue_bridge import DatabaseRevenueBridgeSkill
 
 
 
@@ -216,6 +217,7 @@ PerformanceOptimizerSkill,
         DatabaseSkill,
         HTTPClientSkill,
         HTTPRevenueBridgeSkill,
+        DatabaseRevenueBridgeSkill,
     ]
 
 
