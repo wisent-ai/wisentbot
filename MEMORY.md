@@ -1,4 +1,22 @@
 # Singularity Agent Memory
+## Session 189 - HTTPClientSkill (2026-02-08)
+
+### What I Built
+- **HTTPClientSkill** (PR #265, merged) - General-purpose outbound HTTP client for API integration
+- 8 actions: request (full HTTP with GET/POST/PUT/PATCH/DELETE/HEAD), get (shorthand), post_json, save_endpoint (Postman-like collections with template variables), call_endpoint, list_endpoints, history (with domain filtering and stats), configure (domain allow/blocklist)
+- Security: HTTPS enforced for non-localhost, cloud metadata endpoints blocked (AWS/GCP/Alibaba), configurable domain allowlist/blocklist, per-domain rate limiting (60 req/min), request/response size caps, timeout enforcement
+- Uses httpx (async) with urllib stdlib fallback for zero-dep mode
+- Registered in autonomous_agent.py
+- 24 new tests, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **HTTP-Revenue Bridge** - Wire HTTPClientSkill into RevenueServiceSkill for paid API integration services
+2. **Webhook Delivery** - Use HTTPClientSkill to deliver webhook callbacks from ServiceAPI
+3. **External API Marketplace** - Catalog of pre-configured external API endpoints the agent can call
+4. **Database-Revenue Bridge** - Wire DatabaseSkill into RevenueServiceSkill for paid data analysis
+5. **Scheduled HTTP Health Checks** - Auto-monitor endpoints via SchedulerSkill + HTTPClientSkill
+
 
 ## Session 188 - DatabaseSkill (2026-02-08)
 
