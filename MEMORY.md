@@ -1,5 +1,33 @@
 # Singularity Agent Memory
 
+## Session 157 - CircuitBreakerSkill (2026-02-08)
+
+### What I Built
+- **CircuitBreakerSkill** (PR #232, merged) - Runtime safety mechanism for autonomous operations
+- Implements the Circuit Breaker pattern (Netflix Hystrix-style) for skill execution
+- **Three-state circuit**: CLOSED (normal) -> OPEN (blocked) -> HALF_OPEN (testing) -> CLOSED (recovered)
+- **Sliding window failure tracking**: Configurable window size, failure rate threshold (default 50%)
+- **Consecutive failure detection**: Fast-path circuit opening after N consecutive failures
+- **Cost-per-success breaker**: Opens when cost per successful request exceeds threshold
+- **Budget-critical mode**: Auto-blocks non-essential skills when budget < $1 (essential_skills whitelist)
+- **Manual overrides**: force_open/force_close for manual intervention
+- **Persistent state**: Circuit states survive restarts via JSON persistence
+- **Health dashboard**: Aggregate stats, worst performers, recent events
+- 8 actions: record, check, status, force_open, force_close, reset, configure, dashboard
+- 17 tests pass, 17 smoke tests pass
+
+### Why This Matters
+Without a circuit breaker, the autonomous agent can endlessly retry broken APIs, burning through its entire budget on failures. This is the missing safety net.
+
+### What to Build Next
+Priority order:
+1. **Agent Loop Circuit Breaker Integration** - Wire CircuitBreakerSkill into the main agent loop so every skill execution automatically records outcomes and checks circuit state before execution
+2. **Circuit Breaker EventBus Integration** - Emit events on circuit state changes so other skills (alerts, incident response) can react automatically
+3. **Cron Expression Parser** - SchedulerSkill has a CRON type enum but no actual cron expression parsing
+4. **Cross-Agent Circuit Sharing** - Share circuit breaker states across replicas
+5. **Adaptive Thresholds** - Auto-tune circuit breaker thresholds based on historical skill performance patterns
+
+
 ## Session 156 - ReputationWeightedVotingSkill (2026-02-08)
 
 ### What I Built
