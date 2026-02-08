@@ -1,5 +1,32 @@
 # Singularity Agent Memory
 
+## Session 151 - AutoPlaybookGeneratorSkill (2026-02-08)
+
+### What I Built
+- **AutoPlaybookGeneratorSkill** (PR #TBD, merged) - Automatically cluster reflections and generate playbooks from patterns
+- #1 priority from session 150: "Auto-Playbook Generation"
+- Closes the gap: agent accumulates reflections via AgentReflectionSkill but manually creating playbooks required initiative
+- Clustering engine: single-linkage agglomerative clustering using tag overlap + keyword similarity (no external LLM needed)
+- Similarity scoring: weighted combination of tag overlap (50%), task keyword overlap (35%), analysis keyword overlap (15%)
+- Cluster scoring: weights cluster size, tag consistency, and moderate success rate (pure success doesn't need playbooks)
+- Playbook extraction: extracts steps from successful action patterns, pitfalls from failure analysis/improvements
+- Coverage detection: identifies which clusters are already covered by existing playbooks (50% tag overlap threshold)
+- 8 actions: scan (cluster + gap detection), generate (auto-create playbooks), clusters (view cache), validate (check effectiveness), prune (remove underperformers), configure, history, status
+- Integrates with AgentReflectionSkill via SkillContext: reads reflections/playbooks, creates new playbooks through it
+- Auto-prune system: tracks generated playbook effectiveness, flags underperformers below configurable threshold
+- Dry-run support for both generate and prune actions
+- Persistent JSON storage for generations, cluster cache, config, and prune history
+- 18 new tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **Playbook-Pipeline Integration** - Convert playbooks into PipelineExecutor pipelines for automatic execution
+2. **Cross-Agent Playbook Sharing** - Share effective playbooks between agent replicas via FunctionMarketplace
+3. **Reflection-Driven Goal Setting** - Use pattern analysis to recommend new goals based on identified weaknesses
+4. **Adaptive Skill Loading** - Use reflection patterns to dynamically load/unload skills based on task types
+5. **Revenue Goal Auto-Setting** - Auto-set revenue goals from RevenueAnalyticsDashboard forecast data
+
+
 ## Session 150 - ReflectionEventBridgeSkill (2026-02-08)
 
 ### What I Built
