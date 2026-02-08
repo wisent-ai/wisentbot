@@ -75,6 +75,8 @@ class AutonomousLoopSkill(Skill):
                 "auto_learn": True,         # Run feedback loop after each iteration
                 "skip_assess_if_recent": 300,  # Skip assess if done in last N seconds
                 "max_journal_entries": 200,
+                "circuit_breaker_enabled": True,  # Check circuit breaker before skill execution
+                "circuit_breaker_skip_self": True,  # Don't circuit-break the loop's own skill calls
             },
             "stats": {
                 "total_iterations": 0,
@@ -84,6 +86,8 @@ class AutonomousLoopSkill(Skill):
                 "total_cost": 0.0,
                 "started_at": None,
                 "last_iteration_at": None,
+                "circuit_breaker_denials": 0,
+                "circuit_breaker_recordings": 0,
             },
             "last_assessment": None,
             "last_assessment_at": None,
@@ -636,12 +640,89 @@ class AutonomousLoopSkill(Skill):
 
         return plan
 
+    async def _check_circuit_breaker(self, skill_id: str, state: Dict) -> Dict:
+        """Check if a skill is allowed to execute via circuit breaker.
+
+        Returns dict with 'allowed' (bool) and 'reason' (str).
+        If circuit_breaker is disabled or unavailable, always allows execution.
+        """
+        config = state.get("config", {})
+        if not config.get("circuit_breaker_enabled", True):
+            return {"allowed": True, "reason": "circuit_breaker_disabled"}
+
+        # Don't circuit-break the loop's own internal calls
+        skip_self = config.get("circuit_breaker_skip_self", True)
+        internal_skills = {"autonomous_loop", "circuit_breaker", "outcome_tracker", "feedback_loop"}
+        if skip_self and skill_id in internal_skills:
+            return {"allowed": True, "reason": "internal_skill_exempt"}
+
+        if not self.context:
+            return {"allowed": True, "reason": "no_context"}
+
+        try:
+            check_result = await self.context.call_skill(
+                "circuit_breaker", "check", {"skill_id": skill_id}
+            )
+            if check_result.success and check_result.data:
+                allowed = check_result.data.get("allowed", True)
+                reason = check_result.data.get("reason", "")
+                return {"allowed": allowed, "reason": reason, "data": check_result.data}
+            # If circuit_breaker skill returns failure (e.g., not registered), allow execution
+            return {"allowed": True, "reason": "circuit_breaker_unavailable"}
+        except Exception:
+            # Circuit breaker itself failing should never block execution
+            return {"allowed": True, "reason": "circuit_breaker_error"}
+
+    async def _record_circuit_outcome(self, skill_id: str, success: bool,
+                                       cost: float = 0.0, duration_ms: float = 0.0,
+                                       error: str = "", state: Dict = None) -> None:
+        """Record a skill execution outcome in the circuit breaker.
+
+        Silently fails if circuit_breaker is unavailable or disabled.
+        """
+        config = (state or {}).get("config", {})
+        if not config.get("circuit_breaker_enabled", True):
+            return
+
+        # Don't record internal skill calls
+        skip_self = config.get("circuit_breaker_skip_self", True)
+        internal_skills = {"autonomous_loop", "circuit_breaker", "outcome_tracker", "feedback_loop"}
+        if skip_self and skill_id in internal_skills:
+            return
+
+        if not self.context:
+            return
+
+        try:
+            await self.context.call_skill(
+                "circuit_breaker", "record", {
+                    "skill_id": skill_id,
+                    "success": success,
+                    "cost": cost,
+                    "duration_ms": duration_ms,
+                    "error": error[:200] if error else "",
+                }
+            )
+        except Exception:
+            pass  # Never let circuit breaker recording break the main loop
+
     async def _run_actions(self, plan: Dict) -> Dict:
-        """Execute the planned steps."""
+        """Execute the planned steps with circuit breaker protection.
+
+        Before each skill execution:
+        1. Checks circuit breaker - if the circuit is open, skips the skill
+        2. Executes the skill if allowed
+        3. Records the outcome (success/failure) back to the circuit breaker
+
+        This prevents the autonomous loop from repeatedly calling broken skills,
+        saving budget and enabling graceful degradation.
+        """
+        state = self._load()
         results = {
             "success": False,
             "steps_executed": 0,
             "steps_succeeded": 0,
+            "steps_denied": 0,
             "step_results": [],
             "total_revenue": 0.0,
             "total_cost": 0.0,
@@ -653,24 +734,71 @@ class AutonomousLoopSkill(Skill):
                 "description": step.get("description", ""),
                 "success": False,
                 "message": "",
+                "circuit_breaker": None,
             }
 
             skill_id = step.get("skill_id")
             action = step.get("action")
 
             if skill_id and action and self.context:
-                try:
-                    result = await self.context.call_skill(
-                        skill_id, action, step.get("params", {})
+                # Phase 1: Check circuit breaker
+                cb_check = await self._check_circuit_breaker(skill_id, state)
+                step_result["circuit_breaker"] = cb_check.get("reason", "")
+
+                if not cb_check.get("allowed", True):
+                    # Circuit is open - skip this skill
+                    step_result["message"] = (
+                        f"DENIED by circuit breaker: {skill_id} "
+                        f"({cb_check.get('reason', 'circuit_open')})"
                     )
-                    step_result["success"] = result.success
-                    step_result["message"] = result.message[:200]
-                    step["status"] = "completed" if result.success else "failed"
-                    results["total_revenue"] += result.revenue
-                    results["total_cost"] += result.cost
-                except Exception as e:
-                    step_result["message"] = f"Error: {str(e)[:150]}"
-                    step["status"] = "failed"
+                    step["status"] = "circuit_denied"
+                    results["steps_denied"] += 1
+
+                    # Update stats
+                    stats = state.get("stats", {})
+                    stats["circuit_breaker_denials"] = stats.get("circuit_breaker_denials", 0) + 1
+                    state["stats"] = stats
+                else:
+                    # Phase 2: Execute the skill
+                    start_time = time.time()
+                    try:
+                        result = await self.context.call_skill(
+                            skill_id, action, step.get("params", {})
+                        )
+                        duration_ms = (time.time() - start_time) * 1000
+                        step_result["success"] = result.success
+                        step_result["message"] = result.message[:200]
+                        step["status"] = "completed" if result.success else "failed"
+                        results["total_revenue"] += result.revenue
+                        results["total_cost"] += result.cost
+
+                        # Phase 3: Record outcome to circuit breaker
+                        await self._record_circuit_outcome(
+                            skill_id=skill_id,
+                            success=result.success,
+                            cost=result.cost,
+                            duration_ms=duration_ms,
+                            error="" if result.success else result.message[:200],
+                            state=state,
+                        )
+                        stats = state.get("stats", {})
+                        stats["circuit_breaker_recordings"] = stats.get("circuit_breaker_recordings", 0) + 1
+                        state["stats"] = stats
+
+                    except Exception as e:
+                        duration_ms = (time.time() - start_time) * 1000
+                        step_result["message"] = f"Error: {str(e)[:150]}"
+                        step["status"] = "failed"
+
+                        # Record failure to circuit breaker
+                        await self._record_circuit_outcome(
+                            skill_id=skill_id,
+                            success=False,
+                            cost=0.0,
+                            duration_ms=duration_ms,
+                            error=str(e)[:200],
+                            state=state,
+                        )
             else:
                 # No specific skill action - record as a recommendation
                 step_result["success"] = True
