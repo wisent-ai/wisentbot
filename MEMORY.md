@@ -1,5 +1,39 @@
 # Singularity Agent Memory
 
+## Session 181 - LearningDistillationSkill (2026-02-08)
+
+### What I Built
+- **LearningDistillationSkill** (PR #257, merged) - New capability for cross-session wisdom synthesis
+- Addresses the critical gap: agent collects data from outcomes, feedback, experiments, profiler — but each session starts fresh without distilled learnings
+- Synthesizes raw data from 4 sources into a persistent, queryable knowledge base of learned rules
+- **8 actions**: `distill`, `query`, `add_rule`, `reinforce`, `weaken`, `expire`, `status`, `configure`
+- **distill action**: Reads from outcome_tracker, feedback_loop, experiments, skill_profiler data files. Analyzes per-skill success rates, failure patterns, cost outliers, experiment winners, and execution speed. Creates categorized rules with confidence scores.
+- **7 rule categories**: success_pattern, failure_pattern, cost_efficiency, skill_preference, timing_pattern, combination, general
+- **Outcome distillation**: Groups outcomes by skill/action, computes success rates, identifies high-performers (>80%) and chronic failures (<30%), detects cost outliers (>2x average), extracts common error messages.
+- **Feedback distillation**: Extracts applied adaptations with positive/negative outcomes into reusable rules.
+- **Experiment distillation**: Converts concluded experiments with winners into skill preference rules with confidence scaled by trial count.
+- **Profiler distillation**: Identifies fast skills (below 50% of average duration) for speed-preference rules.
+- **Confidence mechanics**: Rules have 0-1 confidence. Reinforce increases asymptotically toward 1.0 (+20% of remaining gap). Weaken decays by 30%. Auto-expire removes old (<30 days) + low-confidence (<0.4) rules.
+- **query action**: Filter rules by skill_id, category, min_confidence. Returns sorted by confidence descending, capped at 20.
+- **Persistent storage**: JSON-backed with MAX_RULES=500, MAX_DISTILLATION_HISTORY=100 limits.
+- 18 new tests (test_learning_distillation.py), all passing. 17 smoke tests passing.
+
+### Files Changed
+- singularity/skills/learning_distillation.py - New skill (897 lines)
+- tests/test_learning_distillation.py - 18 new tests (268 lines)
+
+### Pillar: Self-Improvement
+Closes the gap between data collection and actionable wisdom. Previously, the agent had outcome tracking, feedback loops, and experiments to collect data, but no way to distill that data into reusable heuristics across sessions. Now, the agent can periodically run `distill` to synthesize learnings, then `query` at decision time to consult its accumulated wisdom before choosing actions. Rules strengthen with confirmation and weaken with contradiction, creating a living knowledge base that improves over time.
+
+### What to Build Next
+Priority order:
+1. **Distillation → Autonomous Loop Integration** - Wire distill into the LEARN phase of autonomous loop, and query into the DECIDE phase
+2. **Cross-Preset Deduplication** - Some presets have overlapping schedules - deduplicate to reduce scheduler load
+3. **Preset Performance Profiling** - Track execution time per preset task and flag slow tasks
+4. **Distillation → Prompt Evolution Bridge** - Auto-feed high-confidence rules into prompt evolution as prompt additions
+5. **Rule Conflict Detection** - Detect when rules contradict each other and resolve via confidence comparison
+
+
 ## Session 180 - Preset Health Alerts via EventBus (2026-02-08)
 
 ### What I Built
