@@ -105,6 +105,8 @@ from .skills.database import DatabaseSkill
 from .skills.http_client import HTTPClientSkill
 from .skills.http_revenue_bridge import HTTPRevenueBridgeSkill
 from .skills.database_revenue_bridge import DatabaseRevenueBridgeSkill
+from .skills.webhook_delivery import WebhookDeliverySkill
+from .skills.api_marketplace import ExternalAPIMarketplaceSkill
 
 
 
@@ -218,6 +220,8 @@ PerformanceOptimizerSkill,
         HTTPClientSkill,
         HTTPRevenueBridgeSkill,
         DatabaseRevenueBridgeSkill,
+        WebhookDeliverySkill,
+        ExternalAPIMarketplaceSkill,
     ]
 
 
