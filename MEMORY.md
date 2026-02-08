@@ -1,5 +1,28 @@
 # Singularity Agent Memory
 
+## Session 39 - SkillExecutionInstrumenter (2026-02-08)
+
+### What I Built
+- **SkillExecutionInstrumenter** (PR #161, merged) - Automatic observability metrics + event bridge integration for every skill execution
+- #1 priority from session 38 memory: "Wire ObservabilitySkill into SkillEventBridge"
+- **Wired into AutonomousAgent._execute_tool()** — every skill action is now automatically instrumented with timing, success/error tracking, and bridge events
+- **Metrics emission**: Emits `skill.execution.count` (counter), `skill.execution.latency_ms` (histogram), `skill.execution.errors` (counter) to ObservabilitySkill with labels for skill_id, action, status
+- **Bridge event emission**: Calls `SkillEventBridge.emit_bridge_events()` after each execution for reactive cross-skill automation
+- **Periodic alert checking**: Triggers `ObservabilitySkill.check_alerts()` every N executions (configurable, default 50)
+- **Local analytics**: Per-skill execution stats with 6 actions: instrument, configure, stats, recent, top_skills, health
+- **Self-protection**: Excludes itself from instrumentation to prevent infinite loops
+- **Graceful degradation**: All instrumentation wrapped in try/except — never breaks skill execution
+- 14 tests pass, all 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **Integrate emit_bridge_events into AutonomousLoop** - Wire the bridge into AutonomousLoopSkill._run_actions() for loop-specific instrumentation
+2. **Observability-Triggered Alerts to IncidentResponse** - When alerts fire from check_alerts, auto-create incidents via new bridge definition
+3. **Reputation-Weighted Voting** - Wire AgentReputationSkill into ConsensusProtocolSkill for reputation-weighted votes
+4. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics using ObservabilitySkill queries
+5. **DNS Automation** - Cloudflare API integration for automatic DNS records
+6. **Bridge Auto-Discovery** - SkillEventBridge automatically discovers new skills and suggests bridge definitions
+
 ## Session 38 - ObservabilitySkill (2026-02-08)
 
 ### What I Built
