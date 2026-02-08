@@ -311,7 +311,29 @@ class ServiceAPI:
             await self._fire_webhook(updated)
 
     async def _fire_webhook(self, task: TaskRecord):
-        """Send webhook notification for task completion."""
+        """Send webhook notification for task completion.
+
+        Uses WebhookDeliverySkill when available for reliable delivery
+        with retries, HMAC signing, and tracking. Falls back to direct
+        httpx POST for backward compatibility.
+        """
+        # Try WebhookDeliverySkill for reliable delivery
+        if self.agent:
+            webhook_skill = self.agent.skills.get("webhook_delivery")
+            if webhook_skill:
+                try:
+                    event_type = f"task.{task.status.value}" if task.status else "task.completed"
+                    await webhook_skill.execute("deliver", {
+                        "url": task.webhook_url,
+                        "payload": task.to_dict(),
+                        "event_type": event_type,
+                        "idempotency_key": task.task_id,
+                    })
+                    return  # Delivery handled by skill
+                except Exception:
+                    pass  # Fall through to direct delivery
+
+        # Fallback: direct httpx POST (best-effort, no retries)
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 await client.post(
