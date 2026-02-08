@@ -1,5 +1,32 @@
 # Singularity Agent Memory
 
+## Session 158 - Circuit Breaker Loop Integration (2026-02-08)
+
+### What I Built
+- **Circuit Breaker Loop Integration** (PR #233, merged) - Wire CircuitBreakerSkill into AutonomousLoop
+- #1 priority from session 157 MEMORY: "Agent Loop Circuit Breaker Integration"
+- Every skill execution in `_run_actions()` now automatically flows through the circuit breaker
+- **Pre-execution check**: calls `circuit_breaker.check()` before each skill - if circuit is open, skips the skill
+- **Post-execution recording**: calls `circuit_breaker.record()` with success/failure + duration_ms after each skill
+- **Fail-open design**: circuit breaker unavailability or exceptions NEVER block the main loop
+- **Internal skill exemption**: autonomous_loop, circuit_breaker, outcome_tracker, feedback_loop bypass CB to prevent deadlocks
+- **New config options**: `circuit_breaker_enabled` (default: True), `circuit_breaker_skip_self` (default: True)
+- **New stats**: `circuit_breaker_denials`, `circuit_breaker_recordings` tracked in loop state
+- **Duration tracking**: enables cost-per-success circuit breaking from the CB skill
+- 9 new tests, all passing. 11 existing loop tests still pass. 17 smoke tests pass.
+
+### Why This Matters
+The CircuitBreakerSkill (PR #232) was a standalone safety mechanism that nothing used. Without this integration, the autonomous loop would still call broken skills endlessly, draining budget. Now every skill execution automatically checks the circuit first and records outcomes - creating a true safety net for autonomous operation.
+
+### What to Build Next
+Priority order:
+1. **Circuit Breaker EventBus Integration** - Emit events on circuit state changes (CLOSED->OPEN, OPEN->HALF_OPEN, etc.) so AlertSkill and incident response can react automatically
+2. **Cron Expression Parser** - SchedulerSkill has a CRON type enum but no actual cron expression parsing implementation
+3. **Cross-Agent Circuit Sharing** - Share circuit breaker states across replicas so one replica's failure detection benefits the whole fleet
+4. **Adaptive Thresholds** - Auto-tune circuit breaker thresholds based on historical skill performance patterns using AgentReflectionSkill data
+5. **Revenue Goal Auto-Setting** - Auto-set revenue goals from RevenueAnalyticsDashboard forecast data
+
+
 ## Session 157 - CircuitBreakerSkill (2026-02-08)
 
 ### What I Built
