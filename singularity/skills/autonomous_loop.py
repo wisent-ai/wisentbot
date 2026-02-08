@@ -298,6 +298,12 @@ class AutonomousLoopSkill(Skill):
 
         # Auto-apply maintenance presets on first iteration (fail-silent)
         await self._ensure_maintenance_presets(state)
+
+        # Tick the scheduler to execute any due recurring/one-shot tasks
+        # (maintenance presets create scheduled tasks; tick() actually runs them)
+        scheduler_results = await self._tick_scheduler(state)
+        self._save(state)
+
         force_assess = params.get("force_assess", False)
         iteration_id = f"iter_{uuid.uuid4().hex[:8]}"
         iteration_start = time.time()
@@ -366,11 +372,24 @@ class AutonomousLoopSkill(Skill):
             "steps_succeeded": action_results.get("steps_succeeded", 0),
         }
 
+        # Record scheduler tick results in journal
+        if scheduler_results.get("tasks_executed", 0) > 0:
+            journal_entry["phases"]["scheduler_tick"] = scheduler_results
+
         # Sync circuit breaker events after skill executions
         await self._sync_cb_event_bridge(state)
 
         # Sync circuit sharing events (fleet-wide circuit state changes)
         await self._sync_circuit_sharing_events(state)
+
+        # Sync goal progress events (goal lifecycle transitions)
+        await self._sync_goal_progress_events(state)
+
+        # Sync fleet health events (heal, scale, update actions)
+        await self._sync_fleet_health_events(state)
+
+        # Poll auto-reputation bridge (delegation outcomes → reputation updates)
+        await self._sync_auto_reputation(state)
 
         # Phase 5: MEASURE
         state["current_phase"] = LoopPhase.MEASURE
@@ -916,6 +935,121 @@ class AutonomousLoopSkill(Skill):
                 state["stats"] = stats
         except Exception:
             pass  # Bridge not registered or unavailable - that is OK
+
+
+    async def _tick_scheduler(self, state: Dict) -> Dict:
+        """Execute due scheduled tasks by calling scheduler.tick().
+
+        The scheduler stores recurring and one-shot tasks created by scheduler_presets
+        (adaptive thresholds tuning, revenue goal tracking, experiment management,
+        circuit sharing monitoring, etc). Without calling tick(), these tasks are
+        created but never actually execute.
+
+        Fail-silent: if the scheduler skill isn't registered, just skip.
+
+        Returns dict with tick results summary.
+        """
+        tick_summary = {"tasks_executed": 0, "tasks_succeeded": 0, "tasks_failed": 0}
+        try:
+            if not self.context:
+                return tick_summary
+
+            # First check how many tasks are due (lightweight check)
+            scheduler_skill = self.context.get_skill("scheduler")
+            if not scheduler_skill:
+                return tick_summary
+
+            due_count = scheduler_skill.get_due_count()
+            if due_count == 0:
+                return tick_summary
+
+            # Execute due tasks via tick()
+            results = await scheduler_skill.tick()
+            for result in results:
+                tick_summary["tasks_executed"] += 1
+                if result.success:
+                    tick_summary["tasks_succeeded"] += 1
+                else:
+                    tick_summary["tasks_failed"] += 1
+
+            # Update stats
+            stats = state.get("stats", {})
+            stats["scheduler_ticks"] = stats.get("scheduler_ticks", 0) + 1
+            stats["scheduler_tasks_executed"] = (
+                stats.get("scheduler_tasks_executed", 0) + tick_summary["tasks_executed"]
+            )
+            stats["scheduler_tasks_succeeded"] = (
+                stats.get("scheduler_tasks_succeeded", 0) + tick_summary["tasks_succeeded"]
+            )
+            state["stats"] = stats
+
+        except Exception:
+            pass  # Scheduler not registered or unavailable - that's OK
+
+        return tick_summary
+
+    async def _sync_goal_progress_events(self, state: Dict):
+        """Monitor goal state changes and emit EventBus events.
+
+        Calls GoalProgressEventBridgeSkill.monitor() to detect goal state
+        transitions (created, milestone completed, goal completed/abandoned,
+        progress stalled) and emit corresponding events.
+
+        Fail-silent: if the bridge skill isn't registered, just skip.
+        """
+        try:
+            if self.context:
+                await self.context.call_skill(
+                    "goal_progress_events", "monitor", {}
+                )
+                stats = state.get("stats", {})
+                stats["goal_progress_syncs"] = stats.get("goal_progress_syncs", 0) + 1
+                state["stats"] = stats
+        except Exception:
+            pass  # Bridge not registered or unavailable - that's OK
+
+    async def _sync_fleet_health_events(self, state: Dict):
+        """Monitor fleet health changes and emit EventBus events.
+
+        Calls FleetHealthEventBridgeSkill.monitor() to detect fleet health
+        changes (heals, scales, updates, policy changes) and emit events.
+
+        Fail-silent: if the bridge skill isn't registered, just skip.
+        """
+        try:
+            if self.context:
+                await self.context.call_skill(
+                    "fleet_health_events", "monitor", {}
+                )
+                stats = state.get("stats", {})
+                stats["fleet_health_syncs"] = stats.get("fleet_health_syncs", 0) + 1
+                state["stats"] = stats
+        except Exception:
+            pass  # Bridge not registered or unavailable - that's OK
+
+    async def _sync_auto_reputation(self, state: Dict):
+        """Poll for unprocessed task delegation outcomes and update reputation.
+
+        Calls AutoReputationBridgeSkill.poll() to scan completed/failed
+        delegations and automatically update agent reputation scores.
+
+        Fail-silent: if the bridge skill isn't registered, just skip.
+        """
+        try:
+            if self.context:
+                result = await self.context.call_skill(
+                    "auto_reputation_bridge", "poll", {}
+                )
+                stats = state.get("stats", {})
+                stats["reputation_polls"] = stats.get("reputation_polls", 0) + 1
+                if result.success and result.data:
+                    stats["reputation_updates"] = (
+                        stats.get("reputation_updates", 0)
+                        + result.data.get("processed", 0)
+                    )
+                state["stats"] = stats
+        except Exception:
+            pass  # Bridge not registered or unavailable - that's OK
 
     async def _run_measurement(self, decision: Dict, action_results: Dict) -> Dict:
         """Record outcomes using outcome_tracker if available."""
