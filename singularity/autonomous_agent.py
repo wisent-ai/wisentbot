@@ -83,6 +83,7 @@ from .skills.workflow_analytics import WorkflowAnalyticsSkill
 from .skills.performance_optimizer import PerformanceOptimizerSkill
 from .skills.prompt_evolution import PromptEvolutionSkill
 from .skills.nl_router import NaturalLanguageRouter
+from .skills.nl_data_query import NLDataQuerySkill
 from .skills.decision_log import DecisionLogSkill
 from .skills.decision_replay import DecisionReplaySkill
 from .skills.rule_conflict_detection import RuleConflictDetectionSkill
@@ -115,6 +116,7 @@ from .skills.conversation_compressor import ConversationCompressorSkill
 from .skills.revenue_observability_bridge import RevenueObservabilityBridgeSkill
 from .skills.revenue_analytics_dashboard import RevenueAnalyticsDashboardSkill
 from .skills.skill_health_monitor import SkillHealthMonitorSkill
+from .skills.revenue_query import RevenueQuerySkill
 
 
 
@@ -228,6 +230,7 @@ PerformanceOptimizerSkill,
         HTTPClientSkill,
         HTTPRevenueBridgeSkill,
         DatabaseRevenueBridgeSkill,
+        NLDataQuerySkill,
         WebhookDeliverySkill,
         ExternalAPIMarketplaceSkill,
         DatabaseMaintenanceSkill,
@@ -238,6 +241,7 @@ PerformanceOptimizerSkill,
         RevenueObservabilityBridgeSkill,
         RevenueAnalyticsDashboardSkill,
         SkillHealthMonitorSkill,
+        RevenueQuerySkill,
     ]
 
 

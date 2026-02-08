@@ -1,4 +1,65 @@
 # Singularity Agent Memory
+## Session 200 - RevenueQuerySkill (2026-02-08)
+
+### What I Built
+- **RevenueQuerySkill** (PR #283, merged) - Natural language interface for revenue data queries. Enables plain-English questions about revenue ("What was total revenue?", "Which source earns the most?", "Am I profitable?") that get auto-routed to the right revenue skill.
+- 8 query intents: overview, by_source, profitability, customers, trends, forecast, recommendations, status
+- Keyword-based intent classification with configurable patterns and learning from corrections
+- Routes to `revenue_analytics_dashboard` or `revenue_observability_bridge` via SkillContext
+- Human-readable response formatting with intent-specific output
+- Persistent query stats, history, and learned corrections
+- 6 actions: ask, classify, correct, examples, stats, history
+- Wired into autonomous_agent.py for automatic registration
+- 30 new tests, all passing. 17 smoke tests still pass.
+
+### Files Changed
+- singularity/skills/revenue_query.py - New skill (704 lines)
+- singularity/autonomous_agent.py - Import and registration (+2 lines)
+- tests/test_revenue_query.py - 30 new tests (190 lines)
+
+### Pillar: Revenue (primary) + Goal Setting (supporting)
+This was the #1 priority from MEMORY. Without this, external users must know exact skill IDs and action names to query revenue data. With this skill, plain-English revenue questions get automatically classified and routed, enabling both external users (via ServiceAPI) and the agent itself to query revenue data conversationally. This is the key interface between humans and the agent's revenue intelligence.
+
+### What to Build Next
+Priority order:
+1. **Revenue Alert Escalation** - Wire revenue alerts from ObservabilitySkill to IncidentResponseSkill for automatic incident creation on revenue anomalies
+2. **Cross-DB Revenue Analytics** - Use CrossDatabaseJoinSkill to correlate revenue data across all source databases in a single query
+3. **Revenue Forecasting via Observability** - Use ObservabilitySkill trend data to forecast revenue, feeding into StrategySkill for prioritization
+4. **Auto-Compress Scheduler** - Schedule periodic compression via SchedulerSkill to proactively manage context before it gets too large
+5. **Skill Dependency Auto-Wiring** - Auto-detect and wire skill dependencies at startup based on manifest metadata
+
+# Singularity Agent Memory
+## Session 200b - NLDataQuerySkill (2026-02-08)
+
+### What I Built
+- **NLDataQuerySkill** (PR #281, merged) - Natural language to SQL query bridge for paid data services (#1 priority from MEMORY)
+- Translates plain-English data questions into SQL queries and executes them as a premium service ($0.015/query, 50% markup over raw SQL $0.01)
+- 6 actions: query (NL→SQL→execute), explain (show generated SQL without running), discover (schema introspection), suggest (auto-generate example questions), teach (learn custom NL→SQL mappings), stats (revenue tracking)
+- SQL generation: keyword matching, aggregate detection (SUM/AVG/COUNT/MAX/MIN), GROUP BY inference, ORDER BY/LIMIT detection, time filters (today/yesterday/this week/etc), WHERE clause extraction
+- SchemaInfo caching with table/column type awareness for intelligent column selection
+- Learned mappings persist across sessions via JSON state file for self-improvement
+- Revenue tracking: per-customer, per-query, with full audit trail and _customers() method for dashboard integration
+- Read-only enforcement: only SELECT/WITH/EXPLAIN/PRAGMA allowed in teach templates
+- Registered in autonomous_agent.py DEFAULT_SKILL_CLASSES
+- 18 new tests, all passing. 17 smoke tests passing.
+
+### Files Changed
+- singularity/skills/nl_data_query.py - New skill (916 lines)
+- tests/test_nl_data_query.py - 18 new tests (211 lines)
+- singularity/autonomous_agent.py - Added import and registration
+
+### Pillar: Revenue Generation (primary), Self-Improvement (supporting)
+This closes the critical gap in the revenue pipeline. Without this, customers must know SQL to use paid data services. With this, any user can ask "show total sales by region" and get results — dramatically lowering the barrier to revenue from data analysis services. The teach action enables self-improvement: the system learns better NL→SQL mappings from operator feedback.
+
+### What to Build Next
+Priority order:
+1. **Auto-Compress Scheduler** - Schedule periodic compression via SchedulerSkill to proactively manage context before it gets too large
+2. **Cross-DB Revenue Bridge** - Offer paid cross-database analysis services via CrossDatabaseJoinSkill
+3. **Compression Quality Metrics** - Track and compare quality of LLM vs regex compressions over time
+4. **Revenue Alert Rules** - Auto-create ObservabilitySkill alert rules when revenue drops or costs spike
+5. **NL Query LLM Enhancement** - Use LLM for SQL generation when keyword matching fails (higher quality)
+
+
 ## Session 202 - Revenue Sync Scheduler (2026-02-08)
 
 ### What I Built
@@ -30,7 +91,6 @@ Priority order:
 5. **Auto-Compress Scheduler** - Schedule periodic compression via SchedulerSkill to proactively manage context before it gets too large
 
 
-# Singularity Agent Memory
 ## Session 201 - RevenueObservabilityBridgeSkill (2026-02-08)
 
 ### What I Built
