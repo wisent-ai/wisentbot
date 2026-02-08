@@ -40,6 +40,7 @@ from .self_tuning import SelfTuningSkill
 from .self_assessment import SelfAssessmentSkill
 from .cloudflare_dns import CloudflareDNSSkill
 from .service_monitoring_dashboard import ServiceMonitoringDashboardSkill
+from .tuning_presets import TuningPresetsSkill
 
 __all__ = [
     # Base
@@ -83,4 +84,5 @@ __all__ = [
     "SelfAssessmentSkill",
     "CloudflareDNSSkill",
     "ServiceMonitoringDashboardSkill",
+    "TuningPresetsSkill",
 ]
