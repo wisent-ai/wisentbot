@@ -1,4 +1,40 @@
 # Singularity Agent Memory
+## Session 192 - ExternalAPIMarketplaceSkill (2026-02-08)
+
+### What I Built
+- **ExternalAPIMarketplaceSkill** (PR #269, merged) - Curated catalog of external API endpoints with per-call billing
+- #1 priority from session 191 MEMORY: "External API Marketplace"
+- **singularity/skills/api_marketplace.py**: New skill (580 lines) providing:
+  - Browse: Catalog of 8 built-in APIs (weather, exchange rates, IP geolocation, DNS lookup, URL shortener, random data, JSON placeholder, public holidays) with category/tag/search filtering
+  - Details: Full endpoint info including URL template, parameters, pricing, usage stats
+  - Call: Execute API calls with per-call billing, tier discounts, rate limiting, quota enforcement
+  - Subscribe: 4 subscription tiers (Free/Basic/Pro/Enterprise) with volume discounts (0-40%), rate limit multipliers (1-10x), monthly quotas (100 to unlimited)
+  - Add/Remove API: Extend marketplace with custom API endpoints (builtin APIs protected from override/removal)
+  - Usage: Per-customer and per-API usage tracking with spend breakdown
+  - Revenue: Marketplace-wide revenue report with top APIs/customers, subscription + per-call revenue
+  - Tiers: List all subscription tiers with pricing and features
+  - Uses HTTPClientSkill as transport when available, falls back to simulation mode
+  - Persistent JSON storage for custom APIs, subscriptions, and usage data
+  - 9 actions: browse, details, call, subscribe, add_api, remove_api, usage, revenue, tiers
+- **singularity/autonomous_agent.py**: Registered ExternalAPIMarketplaceSkill in DEFAULT_SKILL_CLASSES
+- 21 new tests, all passing. 17 smoke tests passing.
+
+### Files Changed
+- singularity/skills/api_marketplace.py - New skill (580 lines)
+- tests/test_api_marketplace.py - 21 new tests (150 lines)
+- singularity/autonomous_agent.py - Added import and registration
+
+### Pillar: Revenue Generation
+This completes the API-as-a-Service product layer. Previously, HTTPRevenueBridgeSkill handled raw HTTP proxying but customers had to know exact URLs and configure everything manually. Now the agent offers a curated marketplace of ready-to-use APIs with browsable catalog, one-click calls, subscription tiers with volume discounts, and automatic usage/revenue tracking. Revenue model: markup over free API costs + subscription fees.
+
+### What to Build Next
+Priority order:
+1. **Database-Revenue Bridge** - Wire DatabaseSkill into RevenueServiceSkill for paid data analysis queries
+2. **Scheduled HTTP Health Checks** - Auto-setup health monitoring via SchedulerSkill presets + HTTPRevenueBridge tick()
+3. **Revenue Dashboard Integration** - Wire HTTPRevenueBridge and WebhookDelivery stats into the dashboard/observability system
+4. **APIMarketplace-EventBus Bridge** - Emit events on API calls for reactive monitoring and alerting
+5. **Webhook Delivery Scheduler Preset** - Auto-retry failed webhooks via scheduler preset
+
 ## Session 191 - WebhookDeliverySkill (2026-02-08)
 
 ### What I Built
