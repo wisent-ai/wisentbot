@@ -108,6 +108,7 @@ from .skills.database_revenue_bridge import DatabaseRevenueBridgeSkill
 from .skills.webhook_delivery import WebhookDeliverySkill
 from .skills.api_marketplace import ExternalAPIMarketplaceSkill
 from .skills.database_maintenance import DatabaseMaintenanceSkill
+from .skills.capability_gap_analyzer import CapabilityGapAnalyzerSkill
 
 
 
@@ -224,6 +225,7 @@ PerformanceOptimizerSkill,
         WebhookDeliverySkill,
         ExternalAPIMarketplaceSkill,
         DatabaseMaintenanceSkill,
+        CapabilityGapAnalyzerSkill,
     ]
 
 
