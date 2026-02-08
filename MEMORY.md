@@ -1,5 +1,31 @@
 # Singularity Agent Memory
 
+## Session 38 - SelfTuningSkill (2026-02-08)
+
+### What I Built
+- **SelfTuningSkill** (PR #168, merged) - Autonomous parameter tuning based on observability metrics
+- #1 priority from session 134 memory: "Self-Tuning Agent - Use ObservabilitySkill metrics to auto-adjust LLM router weights, circuit breaker thresholds"
+- The agent can now define tuning rules that map metric conditions to parameter adjustments, then run tuning cycles to auto-optimize
+- **7 actions**: tune, add_rule, list_rules, delete_rule, history, rollback, status
+- **add_rule**: Define a tuning rule mapping metric condition to parameter adjustment (5 conditions: above/below/rising/falling/volatile, 3 strategies: step/linear/exponential)
+- **tune**: Full tuning cycle - queries ObservabilitySkill metrics for each rule, evaluates conditions (including trend detection from metric history), computes adjustments with min/max clamping, applies to target skill via configure action
+- **rollback**: Revert any adjustment to its previous value if it made things worse
+- **Trend detection**: Rising/falling conditions use directional consistency across history; volatile uses coefficient of variation > 30%
+- **Cooldown**: Per-rule cooldown prevents oscillation (configurable minutes between adjustments)
+- **Parameter cache**: Tracks all tuned parameter values with full audit trail (previous value, set-by-rule, timestamp)
+- **Dry run**: Preview all adjustments without applying
+- **Dual fallback**: Works via skill context or direct ObservabilitySkill file access
+- 18 tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **SchedulerSkill → AlertIncidentBridge** - Schedule periodic alert polling so the bridge runs automatically without manual triggers
+2. **DNS Automation** - Cloudflare API integration for automatic DNS records
+3. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
+4. **Agent Capability Self-Assessment** - Agents periodically evaluate their own skills and publish updated capability profiles
+5. **Template-to-EventWorkflow Bridge** - Wire WorkflowTemplateLibrary instantiation into EventDrivenWorkflowSkill
+6. **Pre-built Tuning Rules** - Ship default SelfTuningSkill rules for common patterns (latency → batch size, error rate → circuit breaker, cost → model selection)
+
 ## Session 134 - Auto-Reputation Wiring (2026-02-07)
 
 ### What I Built
