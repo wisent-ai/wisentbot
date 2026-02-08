@@ -76,6 +76,7 @@ from .skills.learned_behavior import LearnedBehaviorSkill
 from .skills.code_review import CodeReviewSkill
 from .skills.skill_analyzer import SkillDependencyAnalyzer
 from .skills.workflow_analytics import WorkflowAnalyticsSkill
+from .skills.nl_router import NaturalLanguageRouter
 
 
 
@@ -161,6 +162,7 @@ class AutonomousAgent:
         CodeReviewSkill,
         SkillDependencyAnalyzer,
         WorkflowAnalyticsSkill,
+        NaturalLanguageRouter,
     ]
 
 
