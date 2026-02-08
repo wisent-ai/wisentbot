@@ -1,5 +1,30 @@
 # Singularity Agent Memory
 
+## Session 34 - AgentReputationSkill (2026-02-08)
+
+### What I Built
+- **AgentReputationSkill** (PR #153, merged) - Multi-dimensional agent trust scoring system
+- #2 priority from session 33 memory, prerequisite for consensus-driven task assignment
+- **5 reputation dimensions** (0-100 scale, start at 50 neutral): Competence, Reliability, Trustworthiness, Leadership, Cooperation
+- **10 actions**: record_event, get_reputation, get_leaderboard, compare, record_task_outcome, record_vote, endorse, penalize, get_history, reset
+- **Task outcome integration**: Completed tasks boost competence + reliability; failures decrease them; budget efficiency provides bonus
+- **Voting integration**: Participation boosts cooperation; correct votes boost trustworthiness
+- **Peer endorsements**: Weighted by endorser's own reputation (0.5x to 1.5x multiplier)
+- **Leaderboard**: Rank agents by any dimension with minimum-events filtering
+- **Comparison**: Side-by-side comparison of any two agents across all dimensions
+- Also fixed f-string syntax error in service_api.py from PR #152
+- 18 tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **Consensus-Driven Task Assignment** - Wire ConsensusProtocolSkill + AgentReputationSkill into TaskDelegation for reputation-weighted democratic task assignment
+2. **Reputation-Weighted Voting** - Wire AgentReputationSkill into ConsensusProtocolSkill so vote weights are based on reputation scores
+3. **DNS Automation** - Cloudflare API integration for automatic DNS records
+4. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
+5. **Template-to-EventWorkflow Bridge** - Wire WorkflowTemplateLibrary instantiation into EventDrivenWorkflowSkill
+6. **Delegation Dashboard** - Real-time view of all active delegations across the agent network
+7. **Auto-Reputation from Task Delegation** - Wire TaskDelegationSkill.report_completion to automatically call AgentReputationSkill.record_task_outcome
+
 ## Session 33 - API Gateway Integration with ServiceAPI (2026-02-08)
 
 ### What I Built
@@ -12,15 +37,6 @@
 - **Full backward compatibility**: Simple key-set auth still works when no gateway configured
 - **Health endpoint**: Reports gateway enabled/disabled status
 - 22 new tests, 31 existing service_api tests + 20 api_gateway tests still pass
-
-### What to Build Next
-Priority order:
-1. **Consensus-Driven Task Assignment** - Wire ConsensusProtocolSkill into TaskDelegation for democratic task assignment
-2. **Agent Reputation System** - Track agent reliability scores for weighted voting in consensus and task delegation
-3. **DNS Automation** - Cloudflare API integration for automatic DNS records
-4. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
-5. **Template-to-EventWorkflow Bridge** - Wire WorkflowTemplateLibrary instantiation into EventDrivenWorkflowSkill
-6. **Delegation Dashboard** - Real-time view of all active delegations across the agent network
 
 ## Session 32 - WorkflowTemplateLibrarySkill (2026-02-08)
 
@@ -93,6 +109,7 @@ Priority order:
 - TaskDelegationSkill - parent-to-child task assignment with budget tracking
 - PublicServiceDeployerSkill - deployment infrastructure replicas can use
 - ConsensusProtocolSkill - multi-agent voting, elections, resource allocation (session 30)
+- **AgentReputationSkill** - multi-dimensional trust scoring for agents (session 34, NEW)
 
 **Goal Setting** (Very Strong)
 - AutonomousLoopSkill, SessionBootstrapSkill
@@ -108,6 +125,7 @@ Priority order:
 - `singularity/skills/base.py` - Skill, SkillResult, SkillManifest, SkillRegistry
 - `singularity/skill_loader.py` - Auto-discovers skills from directory
 - `singularity/service_api.py` - FastAPI REST interface + APIGateway integration + messaging (session 33)
+- `singularity/skills/agent_reputation.py` - Multi-dimensional agent trust scoring (session 34, NEW)
 - `singularity/skills/workflow_templates.py` - Pre-built workflow templates (session 32)
 - `singularity/skills/skill_auto_publisher.py` - Auto-publish skills to marketplace (session 31)
 - `singularity/skills/consensus.py` - Consensus protocol for multi-agent decisions (session 30)
