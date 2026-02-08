@@ -17,6 +17,7 @@ except RuntimeError:
 import asyncio
 import os
 import json
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -86,6 +87,7 @@ from .skills.skill_profiler import SkillPerformanceProfiler
 from .skills.llm_router import CostAwareLLMRouter
 from .skills.cost_optimizer import CostOptimizerSkill
 from .skills.skill_marketplace_hub import SkillMarketplaceHub
+from .skills.execution_instrumenter import SkillExecutionInstrumenter
 
 
 
@@ -181,6 +183,7 @@ PerformanceOptimizerSkill,
         CostAwareLLMRouter,
         CostOptimizerSkill,
         SkillMarketplaceHub,
+        SkillExecutionInstrumenter,
     ]
 
 
@@ -317,6 +320,7 @@ PerformanceOptimizerSkill,
         self._performance_tracker = None
         self._resource_watcher = None
         self._error_recovery = None
+        self._instrumenter = None
         self._skill_profiler = None
         # Tool resolver for fuzzy matching (lazy-initialized)
         self._tool_resolver = None
@@ -440,6 +444,10 @@ PerformanceOptimizerSkill,
                     self._performance_tracker = skill
                 if skill_class == ErrorRecoverySkill and skill:
                     self._error_recovery = skill
+
+                # Store reference to execution instrumenter for auto-instrumentation
+                if skill_class == SkillExecutionInstrumenter and skill:
+                    self._instrumenter = skill
 
                 # Wire up skill profiler with installed skill IDs
                 if skill_class == SkillPerformanceProfiler and skill:
@@ -839,7 +847,9 @@ PerformanceOptimizerSkill,
                     return {"status": "blocked", "message": advice.reason}
 
                 try:
+                    _t0 = time.time()
                     result = await skill.execute(action_name, params)
+                    _latency_ms = (time.time() - _t0) * 1000
                     outcome = {
                         "status": "success" if result.success else "failed",
                         "data": result.data,
@@ -851,12 +861,39 @@ PerformanceOptimizerSkill,
                         success=result.success,
                         error=result.message if not result.success else "",
                     )
+                    # Auto-instrument via SkillExecutionInstrumenter
+                    if self._instrumenter and skill_id != "execution_instrumenter":
+                        try:
+                            await self._instrumenter.execute("instrument", {
+                                "skill_id": skill_id,
+                                "action": action_name,
+                                "success": result.success,
+                                "latency_ms": _latency_ms,
+                                "result_data": result.data if isinstance(result.data, dict) else {},
+                                "error": result.message if not result.success else "",
+                            })
+                        except Exception:
+                            pass  # Never let instrumentation break execution
                     return outcome
                 except Exception as e:
+                    _latency_ms = (time.time() - _t0) * 1000 if '_t0' in dir() else 0
                     self._adaptive_executor.record_outcome(
                         skill_id, action_name,
                         success=False, error=str(e),
                     )
+                    # Auto-instrument errors too
+                    if self._instrumenter and skill_id != "execution_instrumenter":
+                        try:
+                            await self._instrumenter.execute("instrument", {
+                                "skill_id": skill_id,
+                                "action": action_name,
+                                "success": False,
+                                "latency_ms": _latency_ms,
+                                "result_data": {},
+                                "error": str(e),
+                            })
+                        except Exception:
+                            pass
                     return {"status": "error", "message": str(e)}
 
         return {"status": "error", "message": f"Unknown tool: {tool}"}
