@@ -1,5 +1,32 @@
 # Singularity Agent Memory
 
+## Session 37 - SkillEventBridgeSkill (2026-02-08)
+
+### What I Built
+- **SkillEventBridgeSkill** (PR #159, merged) - Reactive cross-skill event automation via EventBus
+- #1 priority from session 36 memory: "Wire IncidentResponse into EventBus"
+- Transforms isolated skills into a reactive system where events from one skill automatically trigger actions in another
+- **5 pre-built bridges**:
+  - `incident_lifecycle`: Emits 6 events (incident.detected/triaged/responding/escalated/resolved/postmortem)
+  - `health_lifecycle`: Emits 5 events (health.scan_complete/repair_applied/auto_heal_complete/quarantined/released)
+  - `health_to_incident`: Auto-creates incidents when self-healing finds issues (conditional: issues_found > 0)
+  - `incident_to_reputation`: Resolved incidents boost agent competence reputation
+  - `escalation_to_reputation`: Escalations track leadership in agent reputation
+- **6 actions**: wire, unwire, trigger, status, bridges, history
+- **`emit_bridge_events()` API**: Agent execution layer calls this after each skill action to auto-emit bridged events
+- Condition evaluation for conditional reactions (supports >, <, ==, != operators)
+- Event logging, reaction tracking, per-bridge statistics
+- 13 tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **Integrate emit_bridge_events into AutonomousAgent** - Wire the bridge into the agent's main skill execution loop so events are automatically emitted after every skill action
+2. **Reputation-Weighted Voting** - Wire AgentReputationSkill into ConsensusProtocolSkill for reputation-weighted votes
+3. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
+4. **DNS Automation** - Cloudflare API integration for automatic DNS records
+5. **Agent Capability Self-Assessment** - Agents periodically evaluate their own skills and publish updated capability profiles
+6. **Bridge Auto-Discovery** - SkillEventBridge automatically discovers new skills and suggests bridge definitions
+
 ## Session 36 - IncidentResponseSkill (2026-02-08)
 
 ### What I Built
