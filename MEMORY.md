@@ -1,5 +1,32 @@
 # Singularity Agent Memory
 
+## Session 55 - FunctionMarketplaceSkill (2026-02-08)
+
+### What I Built
+- **FunctionMarketplaceSkill** (PR #214, merged) - Cross-agent serverless function exchange
+- #3 priority from session 53: "Function Marketplace"
+- Enables agents to publish, discover, import, and rate serverless functions from each other
+- 9 actions: publish, browse, import_function, rate, get_listing, featured, my_publications, unpublish, status
+- Publish functions from ServerlessFunctionSkill or with inline code, with category/tag taxonomy
+- Browse with category/search/agent filters and relevance-ranked search
+- One-action import copies code into local ServerlessFunctionSkill deployment
+- Rating system (1-5 stars) with self-rating prevention and duplicate review handling
+- Featured functions ranked by composite score (rating × reviews + log(imports))
+- Per-import pricing with publisher earnings tracking and revenue attribution
+- 8 function categories: data_transform, text_processing, api_integration, utility, analytics, security, ai_ml, revenue
+- Replication pillar: agents share capabilities through function exchange
+- Revenue pillar: function authors earn from imports
+- Self-Improvement pillar: agents acquire new capabilities without building
+- 15 tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **Serverless-ServiceHosting Bridge** - Auto-register serverless functions in ServiceHostingSkill for unified service management
+2. **Cross-Agent Checkpoint Sync** - Share checkpoint analytics between replicas for fleet-wide progress tracking
+3. **Revenue Goal Auto-Setting** - Auto-set revenue goals from RevenueAnalyticsDashboard forecast data
+4. **Function Marketplace Discovery Events** - Emit events when new functions are published/imported for reactive behavior
+5. **Agent Specialization Advisor** - Analyze what functions an agent should build based on marketplace gaps
+
 ## Session 147 - FleetOrchestrationPoliciesSkill (2026-02-08)
 
 ### What I Built
