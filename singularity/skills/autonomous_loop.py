@@ -300,6 +300,9 @@ class AutonomousLoopSkill(Skill):
             "steps_succeeded": action_results.get("steps_succeeded", 0),
         }
 
+        # Sync circuit breaker events after skill executions
+        await self._sync_cb_event_bridge(state)
+
         # Phase 5: MEASURE
         state["current_phase"] = LoopPhase.MEASURE
         self._save(state)
@@ -812,6 +815,22 @@ class AutonomousLoopSkill(Skill):
 
         results["success"] = results["steps_succeeded"] > 0
         return results
+
+    async def _sync_cb_event_bridge(self, state: Dict):
+        """Sync circuit breaker event bridge to emit events for state changes.
+        
+        Fail-silent: if the bridge skill isn't registered, just skip.
+        """
+        try:
+            if self.context:
+                await self.context.call_skill(
+                    "circuit_breaker_event_bridge", "sync", {}
+                )
+                stats = state.get("stats", {})
+                stats["cb_bridge_syncs"] = stats.get("cb_bridge_syncs", 0) + 1
+                state["stats"] = stats
+        except Exception:
+            pass  # Bridge not registered or unavailable - that's OK
 
     async def _run_measurement(self, decision: Dict, action_results: Dict) -> Dict:
         """Record outcomes using outcome_tracker if available."""
