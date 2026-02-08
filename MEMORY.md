@@ -1,5 +1,34 @@
 # Singularity Agent Memory
 
+## Session 36 - IncidentResponseSkill (2026-02-08)
+
+### What I Built
+- **IncidentResponseSkill** (PR #158, merged) - Autonomous incident detection, triage, response, and postmortem
+- Full incident lifecycle management with structured severity classification (SEV1-SEV4)
+- **8 actions**: detect, triage, respond, escalate, resolve, postmortem, playbook, status
+- **detect**: Report incidents from monitoring, alerts, or manual reports with auto-playbook matching
+- **triage**: Classify severity (SEV1-4), assign impact, tags, and handler
+- **respond**: Execute single actions (restart, rollback, scale_up, failover, notify, block_traffic) or full playbooks
+- **escalate**: Route to another agent with severity upgrade and target tracking
+- **resolve**: Close incident with resolution, root cause, follow-up actions, and MTTR computation
+- **postmortem**: Auto-generate structured postmortem with timeline, SLA analysis, and lessons learned
+- **playbook**: CRUD for reusable multi-step response playbooks with auto-trigger conditions
+- **status**: Overview of active incidents with filtering by severity/status and aggregate metrics
+- Timeline tracking for every incident event
+- SLA monitoring based on severity-specific response time targets
+- Auto-match playbooks to incidents based on trigger conditions (severity, service, tags)
+- Aggregate metrics: total detected/resolved/escalated, MTTR averages, resolution rate
+- 15 tests pass
+
+### What to Build Next
+Priority order:
+1. **Wire IncidentResponse into EventBus** - Emit incident lifecycle events (incident.detected, incident.resolved, etc.) so other skills can react
+2. **Reputation-Weighted Voting** - Wire AgentReputationSkill into ConsensusProtocolSkill for reputation-weighted votes
+3. **Auto-Incident from SelfHealing** - Wire SelfHealingSkill to auto-detect incidents when subsystem issues found
+4. **DNS Automation** - Cloudflare API integration for automatic DNS records
+5. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
+6. **Incident-Playbook-Workflow Bridge** - Wire playbook execution into WorkflowSkill for complex multi-skill response chains
+
 ## Session 35c - ConsensusTaskAssignmentSkill (2026-02-08)
 
 ### What I Built
