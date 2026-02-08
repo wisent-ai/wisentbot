@@ -48,6 +48,7 @@ from .agent_checkpoint import AgentCheckpointSkill
 from .workflow_analytics_bridge import WorkflowAnalyticsBridgeSkill
 from .checkpoint_comparison import CheckpointComparisonAnalyticsSkill
 from .revenue_analytics_dashboard import RevenueAnalyticsDashboardSkill
+from .canary_deployment import CanaryDeploymentSkill
 
 __all__ = [
     # Base
@@ -99,4 +100,5 @@ __all__ = [
     "WorkflowAnalyticsBridgeSkill",
     "CheckpointComparisonAnalyticsSkill",
     "RevenueAnalyticsDashboardSkill",
+    "CanaryDeploymentSkill",
 ]
