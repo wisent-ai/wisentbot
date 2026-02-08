@@ -1,5 +1,25 @@
 # Singularity Agent Memory
 
+## Session 46 - FleetHealthManagerSkill (2026-02-08)
+
+### What I Built
+- **FleetHealthManagerSkill** (PR #186, merged) - Active fleet management bridging AgentHealthMonitor (detection) with AgentSpawnerSkill (action)
+- 8 actions: assess (fleet health evaluation with prioritized recommendations), heal (restart or replace unhealthy agents), scale (up/down with policy limits), rolling_update (zero-downtime config deployment), set_policy (fleet management thresholds), status (unified fleet view), incidents (audit log), register_agent (add to managed fleet)
+- Auto-heal with escalation: restart first, replace after max failed attempts
+- Scale with limits: respects min/max fleet size policies
+- Rolling updates: batch-based config deployment across fleet
+- Incident logging: full audit trail of all fleet actions
+- 13 tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **Revenue Service Catalog** - Pre-built service offerings deployable via ServiceAPI
+2. **SSL/Certificate Management** - Auto-provision SSL certs for deployed services
+3. **Dashboard-ObservabilitySkill Integration** - Auto-pull metrics from ObservabilitySkill into dashboard
+4. **Workflow Analytics Bridge** - Wire WorkflowAnalytics into TemplateEventBridge for deployed workflow performance tracking
+5. **Workflow Template Auto-Deploy** - Auto-deploy popular templates on agent startup
+6. **Fleet Orchestration Policies** - Pre-built fleet policies (cost-aware, resilience, revenue-optimized)
+
 ## Session 45 - TuningPresetsSkill (2026-02-08)
 
 ### What I Built
