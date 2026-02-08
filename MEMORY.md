@@ -1,5 +1,34 @@
 # Singularity Agent Memory
 
+## Session 149 - CrossAgentCheckpointSyncSkill (2026-02-08)
+
+### What I Built
+- **CrossAgentCheckpointSyncSkill** (PR #219, merged) - Share checkpoint analytics between replicas for fleet-wide progress tracking
+- #1 priority from Session 56: "Cross-Agent Checkpoint Sync"
+- AgentCheckpointSkill creates local checkpoints and CheckpointComparisonAnalyticsSkill analyzes local progress, but neither shares data across replicas
+- This skill bridges them with AgentNetworkSkill to enable fleet-wide checkpoint sharing
+- 8 actions: share, pull, fleet_timeline, divergence, best_practices, sync_policy, merge_insights, status
+- share: Publish checkpoint summaries (pillar scores, skills, experiments, goals) to the fleet
+- pull: Fetch checkpoint summaries from peer agents (all or specific peer)
+- fleet_timeline: Build fleet-wide timeline showing all agents' progress over time with fleet snapshots
+- divergence: Detect when replicas diverge significantly with configurable threshold and worst-pillar alerts
+- best_practices: Rank agents by total/avg scores, identify per-pillar leaders, generate improvement recommendations
+- sync_policy: Configure auto-sharing rules (auto-share on checkpoint, pull interval, divergence threshold)
+- merge_insights: Combine learnings from best-performing agents with duplicate detection and categorization
+- status: View sync state, connected peers, and sharing stats
+- Replication pillar: fleet coordination, replicas share progress and detect divergence
+- Self-Improvement pillar: learn from the best-performing replica's strategies
+- Goal Setting pillar: fleet-wide progress tracking enables collective goal assessment
+- 16 new tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **Revenue Goal Auto-Setting** - Auto-set revenue goals from RevenueAnalyticsDashboard forecast data
+2. **Function Marketplace Discovery Events** - Emit events when new functions are published/imported for reactive behavior
+3. **Agent Specialization Advisor** - Analyze what functions an agent should build based on marketplace gaps
+4. **Reflection-EventBus Bridge** - Auto-reflect after action failures; emit events on new insights/playbook creation
+5. **Checkpoint-Sync EventBus Bridge** - Auto-share checkpoints when checkpoint.created events fire
+
 ## Session 56 - ServerlessServiceHostingBridgeSkill (2026-02-08)
 
 ### What I Built
