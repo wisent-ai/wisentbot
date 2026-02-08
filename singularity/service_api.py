@@ -169,15 +169,19 @@ class ServiceAPI:
     Wraps an AutonomousAgent with a REST API for external consumption.
 
     This is the bridge between the agent's capabilities and paying customers.
+    When an APIGatewaySkill is provided, all requests are validated through
+    the gateway's key management, rate limiting, and usage tracking system.
     """
 
     def __init__(self, agent=None, api_keys: Optional[List[str]] = None,
-                 persist_path: Optional[str] = None, require_auth: bool = False):
+                 persist_path: Optional[str] = None, require_auth: bool = False,
+                 api_gateway=None):
         self.agent = agent
         self.api_keys = set(api_keys or [])
         if os.environ.get("SERVICE_API_KEY"):
             self.api_keys.add(os.environ["SERVICE_API_KEY"])
-        self.require_auth = require_auth or bool(self.api_keys)
+        self.api_gateway = api_gateway
+        self.require_auth = require_auth or bool(self.api_keys) or (api_gateway is not None)
         self.task_store = TaskStore(persist_path=persist_path)
         self._worker_task: Optional[asyncio.Task] = None
         self._started_at = datetime.utcnow().isoformat()
@@ -188,6 +192,37 @@ class ServiceAPI:
         if not key:
             return False
         return key in self.api_keys
+
+    async def validate_via_gateway(self, raw_key: Optional[str],
+                                   required_scope: Optional[str] = None) -> dict:
+        """
+        Validate an API key through the APIGatewaySkill.
+        Returns a dict with allowed, key_id, owner, reason fields.
+        """
+        if not self.api_gateway:
+            return {"allowed": False, "reason": "no_gateway"}
+        params = {"api_key": raw_key or ""}
+        if required_scope:
+            params["required_scope"] = required_scope
+        result = await self.api_gateway.execute("check_access", params)
+        return result.data
+
+    async def record_gateway_usage(self, key_id: str, endpoint: str,
+                                   cost: float = 0.0, revenue: float = 0.0,
+                                   error: bool = False):
+        """Record API usage through the gateway for billing/tracking."""
+        if not self.api_gateway or not key_id:
+            return
+        try:
+            await self.api_gateway.execute("record_usage", {
+                "key_id": key_id,
+                "endpoint": endpoint,
+                "cost": cost,
+                "revenue": revenue,
+                "error": error,
+            })
+        except Exception:
+            pass
 
     async def submit_task(self, skill_id: str, action: str, params: Dict,
                           webhook_url: Optional[str] = None,
@@ -321,16 +356,21 @@ class ServiceAPI:
                 "running": self.agent.running,
                 "skills_loaded": len(self.agent.skills.skills),
             }
-        return {
+        result = {
             "status": "healthy",
             "started_at": self._started_at,
             "agent": agent_info,
             "tasks": self.task_store.stats(),
+            "api_gateway": {
+                "enabled": self.api_gateway is not None,
+            },
         }
+        return result
 
 
 def create_app(agent=None, api_keys: Optional[List[str]] = None,
-               persist_path: Optional[str] = None, require_auth: bool = False) -> "FastAPI":
+               persist_path: Optional[str] = None, require_auth: bool = False,
+               api_gateway=None) -> "FastAPI":
     """
     Create a FastAPI app that serves the agent's capabilities.
 
@@ -339,6 +379,8 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
         api_keys: List of valid API keys for authentication
         persist_path: Path to persist task history
         require_auth: Whether to require API key authentication
+        api_gateway: Optional APIGatewaySkill for advanced key management,
+                     rate limiting, and per-key usage tracking/billing
 
     Returns:
         FastAPI application
@@ -349,9 +391,14 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
             "pip install fastapi uvicorn"
         )
 
+    # Auto-detect APIGatewaySkill from agent if not explicitly provided
+    if api_gateway is None and agent and hasattr(agent, "skills"):
+        api_gateway = agent.skills.get("api_gateway")
+
     service = ServiceAPI(
         agent=agent, api_keys=api_keys,
         persist_path=persist_path, require_auth=require_auth,
+        api_gateway=api_gateway,
     )
 
     app = FastAPI(
@@ -407,11 +454,46 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
     # --- Auth dependency ---
 
     async def check_auth(authorization: Optional[str] = Header(None)):
+        """
+        Validate API key via gateway (if available) or simple key set.
+        Returns a dict with key info when gateway is used, or the raw key string.
+        """
         if not service.require_auth:
             return None
         if not authorization:
             raise HTTPException(status_code=401, detail="API key required")
         key = authorization.replace("Bearer ", "").strip()
+
+        # Use APIGatewaySkill for advanced validation if available
+        if service.api_gateway:
+            access = await service.validate_via_gateway(key)
+            if not access.get("allowed"):
+                reason = access.get("reason", "access_denied")
+                status_code = 403
+                detail = "Invalid API key"
+                if reason == "rate_limited":
+                    status_code = 429
+                    detail = "Rate limit exceeded"
+                elif reason == "daily_limit_exceeded":
+                    status_code = 429
+                    detail = "Daily limit exceeded"
+                elif reason == "expired":
+                    status_code = 403
+                    detail = "API key expired"
+                elif reason == "revoked":
+                    status_code = 403
+                    detail = "API key revoked"
+                elif reason == "insufficient_scope":
+                    status_code = 403
+                    detail = f"Insufficient scope: requires {access.get("required", "unknown")}"
+                elif reason == "missing_key":
+                    status_code = 401
+                    detail = "API key required"
+                raise HTTPException(status_code=status_code, detail=detail)
+            # Return gateway access info (includes key_id, owner, scopes)
+            return {"raw_key": key, "key_id": access.get("key_id"), "owner": access.get("owner"), "via_gateway": True}
+
+        # Fallback to simple key validation
         if not service.validate_api_key(key):
             raise HTTPException(status_code=403, detail="Invalid API key")
         return key
@@ -424,21 +506,28 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
         return service.health()
 
     @app.get("/capabilities")
-    async def capabilities(api_key: str = Depends(check_auth)):
+    async def capabilities(auth_info=Depends(check_auth)):
         """List all available skills and actions."""
         return {"capabilities": service.get_capabilities()}
 
     @app.post("/tasks", response_model=TaskResponse)
-    async def submit_task(body: TaskSubmission, api_key: str = Depends(check_auth)):
+    async def submit_task(body: TaskSubmission, auth_info=Depends(check_auth)):
         """Submit a task for async execution. Returns immediately with task ID."""
         try:
+            raw_key = auth_info.get("raw_key") if isinstance(auth_info, dict) else auth_info
             task = await service.submit_task(
                 skill_id=body.skill_id,
                 action=body.action,
                 params=body.params,
                 webhook_url=body.webhook_url,
-                api_key=api_key,
+                api_key=raw_key,
             )
+            # Track usage via gateway
+            if isinstance(auth_info, dict) and auth_info.get("via_gateway"):
+                await service.record_gateway_usage(
+                    key_id=auth_info["key_id"],
+                    endpoint=f"tasks/{body.skill_id}/{body.action}",
+                )
             return TaskResponse(
                 task_id=task.task_id,
                 status=task.status.value,
@@ -450,7 +539,7 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
             raise HTTPException(status_code=400, detail=str(e))
 
     @app.get("/tasks/{task_id}", response_model=TaskDetail)
-    async def get_task(task_id: str, api_key: str = Depends(check_auth)):
+    async def get_task(task_id: str, auth_info=Depends(check_auth)):
         """Get task status and result."""
         task = service.task_store.get(task_id)
         if not task:
@@ -460,7 +549,7 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
 
     @app.get("/tasks")
     async def list_tasks(status: Optional[str] = None, limit: int = 50,
-                         offset: int = 0, api_key: str = Depends(check_auth)):
+                         offset: int = 0, auth_info=Depends(check_auth)):
         """List tasks with optional status filter."""
         filter_status = TaskStatus(status) if status else None
         tasks = service.task_store.list_tasks(status=filter_status, limit=limit, offset=offset)
@@ -472,17 +561,25 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
         }
 
     @app.post("/execute")
-    async def execute_sync(body: SyncExecution, api_key: str = Depends(check_auth)):
+    async def execute_sync(body: SyncExecution, auth_info=Depends(check_auth)):
         """Execute a skill action synchronously. Blocks until complete."""
         result = await service.execute_sync(
             skill_id=body.skill_id,
             action=body.action,
             params=body.params,
         )
+        # Track usage via gateway
+        if isinstance(auth_info, dict) and auth_info.get("via_gateway"):
+            is_error = result.get("status") == "error"
+            await service.record_gateway_usage(
+                key_id=auth_info["key_id"],
+                endpoint=f"execute/{body.skill_id}/{body.action}",
+                error=is_error,
+            )
         return result
 
     @app.post("/tasks/{task_id}/cancel")
-    async def cancel_task(task_id: str, api_key: str = Depends(check_auth)):
+    async def cancel_task(task_id: str, auth_info=Depends(check_auth)):
         """Cancel a queued task."""
         task = service.task_store.get(task_id)
         if not task:
@@ -497,7 +594,7 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
         return {"task_id": task_id, "status": "cancelled"}
 
     @app.get("/metrics")
-    async def metrics(api_key: str = Depends(check_auth)):
+    async def metrics(auth_info=Depends(check_auth)):
         """Get agent metrics and task statistics."""
         data = {
             "tasks": service.task_store.stats(),
@@ -506,6 +603,67 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
         if agent and hasattr(agent, 'metrics'):
             data["agent"] = agent.metrics.summary()
         return data
+
+    # --- API Gateway Billing & Usage Endpoints ---
+    # These endpoints expose billing and usage data from the APIGatewaySkill.
+    # Only available when an api_gateway is configured.
+
+    @app.get("/billing")
+    async def get_billing(owner: Optional[str] = None, auth_info=Depends(check_auth)):
+        """Get billing summary across all API keys. Requires api_gateway."""
+        if not service.api_gateway:
+            raise HTTPException(status_code=503, detail="API Gateway not configured")
+        params = {}
+        if owner:
+            params["owner"] = owner
+        result = await service.api_gateway.execute("get_billing", params)
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.message)
+        return result.data
+
+    @app.get("/usage/{key_id}")
+    async def get_usage(key_id: str, auth_info=Depends(check_auth)):
+        """Get usage statistics for a specific API key. Requires api_gateway."""
+        if not service.api_gateway:
+            raise HTTPException(status_code=503, detail="API Gateway not configured")
+        result = await service.api_gateway.execute("get_usage", {"key_id": key_id})
+        if not result.success:
+            raise HTTPException(status_code=404, detail=result.message)
+        return result.data
+
+    @app.get("/keys")
+    async def list_api_keys(include_revoked: bool = False, owner: Optional[str] = None,
+                            auth_info=Depends(check_auth)):
+        """List all managed API keys (metadata only). Requires api_gateway."""
+        if not service.api_gateway:
+            raise HTTPException(status_code=503, detail="API Gateway not configured")
+        params = {"include_revoked": include_revoked}
+        if owner:
+            params["owner"] = owner
+        result = await service.api_gateway.execute("list_keys", params)
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.message)
+        return result.data
+
+    @app.post("/keys")
+    async def create_api_key(body: Dict[str, Any], auth_info=Depends(check_auth)):
+        """Create a new API key via the gateway. Requires api_gateway."""
+        if not service.api_gateway:
+            raise HTTPException(status_code=503, detail="API Gateway not configured")
+        result = await service.api_gateway.execute("create_key", body)
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.message)
+        return result.data
+
+    @app.post("/keys/{key_id}/revoke")
+    async def revoke_api_key(key_id: str, auth_info=Depends(check_auth)):
+        """Revoke an API key. Requires api_gateway."""
+        if not service.api_gateway:
+            raise HTTPException(status_code=503, detail="API Gateway not configured")
+        result = await service.api_gateway.execute("revoke_key", {"key_id": key_id})
+        if not result.success:
+            raise HTTPException(status_code=400, detail=result.message)
+        return result.data
 
     # --- Webhook Endpoints ---
     # These allow external systems to trigger agent actions via HTTP POST.
@@ -565,7 +723,7 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
         }
 
     @app.get("/webhooks")
-    async def list_webhooks(api_key: str = Depends(check_auth)):
+    async def list_webhooks(auth_info=Depends(check_auth)):
         """List all registered webhook endpoints."""
         webhook_skill = None
         if agent and hasattr(agent, 'skills'):
@@ -588,7 +746,7 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
         top_k: int = Field(default=5, description="Number of matches to return")
 
     @app.post("/ask")
-    async def ask_natural_language(body: NLQuery, api_key: str = Depends(check_auth)):
+    async def ask_natural_language(body: NLQuery, auth_info=Depends(check_auth)):
         """
         Submit a task in natural language. The router finds the best skill
         and executes it, returning the result.
@@ -617,7 +775,7 @@ def create_app(agent=None, api_keys: Optional[List[str]] = None,
         }
 
     @app.post("/ask/match")
-    async def ask_match_only(body: NLQuery, api_key: str = Depends(check_auth)):
+    async def ask_match_only(body: NLQuery, auth_info=Depends(check_auth)):
         """
         Find matching skills for a natural language query without executing.
         Useful for previewing what would happen before committing.
