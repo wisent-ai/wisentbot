@@ -1,5 +1,31 @@
 # Singularity Agent Memory
 
+## Session 137 - ConfigTemplateSkill (2026-02-08)
+
+### What I Built
+- **ConfigTemplateSkill** (PR #178, merged) - Agent configuration profiles and specialization templates
+- Enables agents to define, store, apply, and share named configuration templates for specializing behavior
+- Critical for Replication (configure replicas) and Revenue (specialize for different services)
+- **10 actions**: list, get, create, snapshot, apply, diff, export, import_template, delete, status
+- **5 built-in specialization templates**: code_reviewer, content_writer, data_analyst, ops_monitor, revenue_agent
+- **list**: Browse all templates with category/tag filtering
+- **create**: Define custom configuration templates with skills_enabled/disabled, parameters, tags
+- **snapshot**: Capture current agent state as a reusable template (reads SkillContext registry)
+- **apply**: Apply a template to configure the agent, with dry_run preview of changes
+- **diff**: Compare two templates side by side (skill differences + parameter differences)
+- **export/import_template**: Portable JSON bundles for cross-agent template sharing
+- Persistent storage, apply history tracking, stats (created/applied/exported/imported)
+- 19 tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **DNS Automation** - Cloudflare API integration for automatic DNS records when deploying services
+2. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
+3. **Template-to-EventWorkflow Bridge** - Wire WorkflowTemplateLibrary instantiation into EventDrivenWorkflowSkill
+4. **Pre-built Tuning Rules** - Ship default SelfTuningSkill rules for common patterns
+5. **Revenue Service Catalog** - Pre-built service offerings deployable via ServiceAPI
+6. **Fleet Health Monitor** - Use AgentSpawnerSkill + HealthMonitor to auto-heal unhealthy replicas
+
 ## Session 41 - AgentSpawnerSkill (2026-02-08)
 
 ### What I Built
