@@ -83,6 +83,12 @@ class AutonomousLoopSkill(Skill):
                 "distillation_interval": 3,         # Distill every N iterations (not every time)
                 "consult_rules_in_decide": True,    # Query distilled rules during DECIDE phase
                 "min_rule_confidence": 0.5,          # Min confidence for rules to influence decisions
+                "replay_enabled": True,             # Run decision replay analysis in LEARN phase
+                "replay_interval": 5,               # Replay every N iterations (heavier than distillation)
+                "replay_batch_size": 20,            # Number of recent decisions to replay
+                "auto_weaken_regressions": True,    # Auto-weaken rules that cause regressions
+                "conflict_scan_enabled": True,      # Run rule conflict detection periodically
+                "conflict_scan_interval": 10,       # Scan for conflicts every N iterations
             },
             "stats": {
                 "total_iterations": 0,
@@ -97,6 +103,11 @@ class AutonomousLoopSkill(Skill):
                 "distillation_runs": 0,
                 "rules_consulted": 0,
                 "decisions_influenced_by_rules": 0,
+                "replay_runs": 0,
+                "replay_regressions_found": 0,
+                "rules_auto_weakened": 0,
+                "conflict_scans": 0,
+                "conflicts_resolved": 0,
             },
             "last_assessment": None,
             "last_assessment_at": None,
@@ -223,6 +234,36 @@ class AutonomousLoopSkill(Skill):
                             "type": "number",
                             "required": False,
                             "description": "Min confidence threshold for rules (0-1)"
+                        },
+                        "replay_enabled": {
+                            "type": "boolean",
+                            "required": False,
+                            "description": "Enable decision replay backtesting in LEARN phase"
+                        },
+                        "replay_interval": {
+                            "type": "integer",
+                            "required": False,
+                            "description": "Run replay every N iterations (default 5)"
+                        },
+                        "replay_batch_size": {
+                            "type": "integer",
+                            "required": False,
+                            "description": "Number of recent decisions to replay (default 20)"
+                        },
+                        "auto_weaken_regressions": {
+                            "type": "boolean",
+                            "required": False,
+                            "description": "Auto-weaken rules causing regressions"
+                        },
+                        "conflict_scan_enabled": {
+                            "type": "boolean",
+                            "required": False,
+                            "description": "Enable periodic rule conflict detection"
+                        },
+                        "conflict_scan_interval": {
+                            "type": "integer",
+                            "required": False,
+                            "description": "Run conflict scan every N iterations (default 10)"
                         },
                     },
                     estimated_cost=0,
@@ -441,6 +482,11 @@ class AutonomousLoopSkill(Skill):
                 "adaptations": learning.get("adaptations_count", 0),
                 "distillation_ran": learning.get("distillation_ran", False),
                 "rules_created": learning.get("rules_created", 0),
+                "replay_ran": learning.get("replay_ran", False),
+                "replay_regressions": learning.get("replay_regressions", 0),
+                "rules_weakened": learning.get("rules_weakened", 0),
+                "conflict_scan_ran": learning.get("conflict_scan_ran", False),
+                "conflicts_resolved": learning.get("conflicts_resolved", 0),
             }
 
         # Finalize
@@ -1270,6 +1316,12 @@ class AutonomousLoopSkill(Skill):
             # Learning distillation - synthesize raw data into rules
             await self._run_distillation(learning)
 
+            # Decision replay - backtest decisions and auto-weaken bad rules
+            await self._run_decision_replay(learning)
+
+            # Rule conflict detection - find and resolve contradictions
+            await self._run_conflict_scan(learning)
+
         return learning
 
     async def _run_distillation(self, learning: Dict):
@@ -1318,6 +1370,179 @@ class AutonomousLoopSkill(Skill):
 
         except Exception:
             pass  # Fail silently - distillation is an enhancement
+
+    async def _run_decision_replay(self, learning: Dict):
+        """
+        Run DecisionReplaySkill to backtest recent decisions against current rules.
+        
+        If regressions are found (rules that would undo past successes),
+        auto-weakens those rules via LearningDistillationSkill.
+        
+        This closes the self-improvement feedback loop:
+        distill rules -> replay decisions -> weaken bad rules -> better decisions
+        """
+        if not self.context:
+            return
+
+        state = self._load()
+        config = state.get("config", {})
+
+        if not config.get("replay_enabled", True):
+            return
+
+        # Only replay every N iterations (heavier than distillation)
+        interval = config.get("replay_interval", 5)
+        iteration_count = state.get("stats", {}).get("total_iterations", 0)
+        if interval > 0 and iteration_count % interval != 0:
+            return
+
+        try:
+            batch_size = config.get("replay_batch_size", 20)
+            
+            # Run batch replay of recent decisions
+            replay_result = await self.context.call_skill(
+                "decision_replay", "batch_replay",
+                {"count": batch_size}
+            )
+
+            if not replay_result.success or not replay_result.data:
+                return
+
+            learning["replay_ran"] = True
+            regressions = replay_result.data.get("regressions", 0)
+            improvements = replay_result.data.get("improvements", 0)
+            learning["replay_regressions"] = regressions
+            learning["replay_improvements"] = improvements
+            learning["replay_reversal_rate"] = replay_result.data.get("reversal_rate", 0)
+
+            # Update stats
+            stats = state.get("stats", {})
+            stats["replay_runs"] = stats.get("replay_runs", 0) + 1
+            stats["replay_regressions_found"] = stats.get("replay_regressions_found", 0) + regressions
+            state["stats"] = stats
+            self._save(state)
+
+            # Auto-weaken rules that cause regressions
+            if config.get("auto_weaken_regressions", True) and regressions > 0:
+                await self._auto_weaken_regression_rules(learning, replay_result.data)
+
+            # Run impact report periodically for deeper analysis (every 3 replay runs)
+            replay_runs = stats.get("replay_runs", 0)
+            if replay_runs % 3 == 0:
+                await self.context.call_skill(
+                    "decision_replay", "impact_report",
+                    {"window_days": 7}
+                )
+
+        except Exception:
+            pass  # Fail silently - replay is an enhancement
+
+    async def _auto_weaken_regression_rules(self, learning: Dict, replay_data: Dict):
+        """
+        Identify and weaken rules that cause regressions (would undo past successes).
+        
+        Examines replay results to find decisions marked as regressions, then
+        identifies which rules drove the contradicting recommendation and weakens them.
+        """
+        if not self.context:
+            return
+
+        results = replay_data.get("results", [])
+        weakened_count = 0
+
+        # Find decisions flagged as regressions
+        regression_decisions = [r for r in results if r.get("regression")]
+
+        for decision_result in regression_decisions:
+            decision_id = decision_result.get("decision_id", "")
+            if not decision_id:
+                continue
+
+            try:
+                # Replay individually to get the applicable_rules detail
+                detail = await self.context.call_skill(
+                    "decision_replay", "replay",
+                    {"decision_id": decision_id}
+                )
+
+                if not detail.success or not detail.data:
+                    continue
+
+                replay_info = detail.data.get("replay", {})
+                applicable_rules = replay_info.get("applicable_rules", [])
+
+                # Weaken rules that contradicted the original (successful) choice
+                # These are rules that recommended a change on a successful decision
+                for rule in applicable_rules:
+                    rule_id = rule.get("rule_id", "")
+                    if not rule_id:
+                        continue
+
+                    # Only weaken rules with moderate+ relevance (not tangential matches)
+                    if rule.get("relevance_score", 0) < 0.3:
+                        continue
+
+                    weaken_result = await self.context.call_skill(
+                        "learning_distillation", "weaken",
+                        {"rule_id": rule_id}
+                    )
+
+                    if weaken_result.success:
+                        weakened_count += 1
+
+            except Exception:
+                continue  # Skip individual failures
+
+        learning["rules_weakened"] = weakened_count
+
+        # Update stats
+        if weakened_count > 0:
+            state = self._load()
+            stats = state.get("stats", {})
+            stats["rules_auto_weakened"] = stats.get("rules_auto_weakened", 0) + weakened_count
+            state["stats"] = stats
+            self._save(state)
+
+    async def _run_conflict_scan(self, learning: Dict):
+        """
+        Run RuleConflictDetectionSkill to find and resolve contradictory rules.
+        
+        Runs less frequently than replay (configured via conflict_scan_interval)
+        since conflict resolution is a heavier operation.
+        """
+        if not self.context:
+            return
+
+        state = self._load()
+        config = state.get("config", {})
+
+        if not config.get("conflict_scan_enabled", True):
+            return
+
+        interval = config.get("conflict_scan_interval", 10)
+        iteration_count = state.get("stats", {}).get("total_iterations", 0)
+        if interval > 0 and iteration_count % interval != 0:
+            return
+
+        try:
+            scan_result = await self.context.call_skill(
+                "rule_conflict_detection", "scan_and_resolve", {}
+            )
+
+            if scan_result.success and scan_result.data:
+                learning["conflict_scan_ran"] = True
+                resolved = scan_result.data.get("resolved", 0)
+                learning["conflicts_resolved"] = resolved
+
+                # Update stats
+                stats = state.get("stats", {})
+                stats["conflict_scans"] = stats.get("conflict_scans", 0) + 1
+                stats["conflicts_resolved"] = stats.get("conflicts_resolved", 0) + resolved
+                state["stats"] = stats
+                self._save(state)
+
+        except Exception:
+            pass  # Fail silently - conflict scan is an enhancement
 
     # ========== Info Actions ==========
 
@@ -1381,6 +1606,8 @@ class AutonomousLoopSkill(Skill):
             "max_iterations", "auto_learn", "pause_between_iterations",
             "distillation_enabled", "distillation_interval",
             "consult_rules_in_decide", "min_rule_confidence",
+            "replay_enabled", "replay_interval", "replay_batch_size",
+            "auto_weaken_regressions", "conflict_scan_enabled", "conflict_scan_interval",
         ]
         for key in configurable_keys:
             if key in params:
