@@ -1,5 +1,34 @@
 # Singularity Agent Memory
 
+## Session 40 - SchedulerPresetsSkill (2026-02-08)
+
+### What I Built
+- **SchedulerPresetsSkill** (PR #172, merged) - One-command automation setup for recurring operations
+- #1 priority from session 39 memory: "SchedulerPresets - Pre-built automation schedules"
+- Instead of manually creating 10+ scheduler entries, agents use one command to set up recurring automation
+- **8 built-in presets**: health_monitoring (benchmark + diagnostics), alert_polling (alert→incident + alert check), self_assessment (profile + gaps + publish), self_tuning (auto-tune cycle), reputation_polling (reputation bridge), revenue_reporting (usage analytics), knowledge_sync (knowledge query), feedback_loop (feedback analysis)
+- **8 actions**: list_presets, apply, apply_all, remove, remove_all, status, create_custom, recommend
+- **list_presets**: All presets with descriptions, schedules, and pillar filtering
+- **apply**: Apply a single preset - creates recurring scheduler entries with sensible default intervals
+- **apply_all**: Apply ALL presets at once for full autonomous operation
+- **remove/remove_all**: Cancel scheduler entries and clean up
+- **status**: Overview of all applied presets and their entries
+- **create_custom**: Create user-defined automation patterns with validation (min interval, required fields)
+- **recommend**: Priority-ranked preset recommendations based on installed skills
+- **Interval multiplier**: Speed up or slow down all schedules (0.5 = 2x faster, 2.0 = half as often)
+- **Dual fallback**: SkillContext or direct scheduler.json file manipulation
+- **Persistent state**: Applied presets and custom presets survive restarts
+- 16 tests pass, 17 smoke tests pass
+
+### What to Build Next
+Priority order:
+1. **DNS Automation** - Cloudflare API integration for automatic DNS records when deploying services
+2. **Service Monitoring Dashboard** - Aggregate health, uptime, revenue metrics across deployed services
+3. **Template-to-EventWorkflow Bridge** - Wire WorkflowTemplateLibrary instantiation into EventDrivenWorkflowSkill
+4. **Pre-built Tuning Rules** - Ship default SelfTuningSkill rules for common patterns (latency → batch size, error rate → circuit breaker)
+5. **Capability-Aware Task Delegation** - Use SelfAssessmentSkill profiles to auto-route tasks to the best agent
+6. **Agent Spawning Orchestrator** - High-level skill that decides when/why to replicate and provisions new instances
+
 ## Session 39 - SelfAssessmentSkill (2026-02-08)
 
 ### What I Built
