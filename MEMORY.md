@@ -1,4 +1,33 @@
 # Singularity Agent Memory
+## Session 170 - Preset Status Dashboard (2026-02-08)
+
+### What I Built
+- **Preset Status Dashboard** (PR #245, merged) - Rich operational dashboard for maintenance presets
+- #1 priority from session 169 MEMORY: "Preset Status Dashboard"
+- **singularity/skills/scheduler_presets.py**: New `dashboard` action in SchedulerPresetsSkill:
+  - Per-preset health assessment: healthy/degraded/unhealthy based on task states
+  - Per-task details: next run time (with overdue detection), interval, run count, last execution, last success status
+  - Execution history analysis: success rate per task, average duration per task
+  - Overall system health scoring: all_healthy/mostly_healthy/degraded/unhealthy/no_presets
+  - Aggregate metrics: total tasks, healthy tasks, overdue tasks, disabled tasks, total executions, overall success rate
+  - Filter by specific preset_id for focused inspection
+  - Reads scheduler data directly from scheduler.json with skill context fallback
+  - Reads execution history from scheduler with file fallback
+  - Health status icons in message: OK/WARN/DEGRADED/CRITICAL/NONE
+  - Also added `_read_scheduler_data()` helper method for querying scheduler state
+- 10 new tests (test_preset_dashboard.py), all passing. 16 existing preset tests passing. 17 smoke tests passing.
+
+### Why This Matters
+Without observability, the agent can't know if its maintenance automation is working. This dashboard enables the agent to self-diagnose: "Are my scheduled tasks running? Are they succeeding? What's overdue?" - the prerequisite for self-healing. Combined with the scheduler tick integration (session 169), the agent now both EXECUTES and MONITORS its maintenance automation.
+
+### What to Build Next
+Priority order:
+1. **Fleet Health Events in Autonomous Loop** - Auto-call fleet_health_events.monitor() after fleet management actions in autonomous loop
+2. **Goal Stall Scheduler Preset** - Add scheduler preset for periodic stall checks (every 4h)
+3. **Scheduler Tick Rate Limiting** - Add configurable min interval between ticks to prevent excessive execution
+4. **Loop Iteration Dashboard** - Unified view of all stats tracked per iteration (scheduler, reputation, goals, circuits)
+5. **Dashboard Auto-Check Preset** - Add scheduler preset that runs dashboard periodically and emits events on degraded health
+
 ## Session 169 - Scheduler Tick + Auto-Reputation + Goal Progress Loop Integration (2026-02-08)
 
 ### What I Built
