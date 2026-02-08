@@ -44,6 +44,7 @@ from .tuning_presets import TuningPresetsSkill
 from .fleet_health_manager import FleetHealthManagerSkill
 from .revenue_catalog import RevenueServiceCatalogSkill
 from .service_catalog import ServiceCatalogSkill
+from .agent_checkpoint import AgentCheckpointSkill
 
 __all__ = [
     # Base
@@ -91,4 +92,5 @@ __all__ = [
     "FleetHealthManagerSkill",
     "RevenueServiceCatalogSkill",
     "ServiceCatalogSkill",
+    "AgentCheckpointSkill",
 ]
