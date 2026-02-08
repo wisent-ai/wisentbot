@@ -1,5 +1,36 @@
 # Singularity Agent Memory
 
+## Session 175 - PipelineLearningSkill (2026-02-08)
+
+### What I Built
+- **PipelineLearningSkill** (PR #250, merged) - Auto-tune pipeline optimization from execution outcome data
+- #1 priority from session 174: "Pipeline Learning"
+- Ingests pipeline execution results to build per-tool performance profiles (success rate, duration percentiles, cost)
+- Auto-recommends optimization strategies per pipeline type based on historical performance
+- Uses Wilson score confidence intervals for ranking strategies with small sample sizes
+- Tunes step parameters (timeouts, retries, cost limits) from real execution data instead of hardcoded defaults
+- Identifies bottleneck tools that consistently fail or exceed budgets
+- Tracks strategy effectiveness across pipeline types - agent learns which strategy works best for each type
+- 7 actions: ingest, tool_profile, recommend, bottlenecks, strategy_effectiveness, tune_step, status
+- 18 new tests, all passing. 17 smoke tests passing.
+
+### Files Changed
+- singularity/skills/pipeline_learning.py - New skill (659 lines)
+- singularity/skills/__init__.py - Import and export
+- singularity/autonomous_agent.py - Import and register skill
+- tests/test_pipeline_learning.py - 18 tests
+
+### Pillar: Self-Improvement
+Closes the act → measure → adapt feedback loop for pipeline execution. Previously PipelinePlannerSkill had static optimization strategies. Now strategies are data-driven: the agent records outcomes, learns per-tool profiles, and auto-tunes future pipelines based on what actually worked.
+
+### What to Build Next
+Priority order:
+1. **Workflow Auto-Trigger** - Auto-execute workflows based on EventBus events (e.g., on code push → run deploy workflow)
+2. **Cross-Agent Pipeline Sharing** - Share pipeline templates between replicas via KnowledgeSharingSkill
+3. **Pipeline Monitoring Dashboard** - Real-time visibility into pipeline execution across fleet
+4. **Revenue Pipeline Templates** - Pre-built pipeline templates for revenue-generating services
+5. **Learning-Planner Integration** - Wire PipelineLearningSkill into PipelinePlannerSkill so optimize action uses learned data
+
 ## Session 174 - WorkflowPipelineBridgeSkill (2026-02-08)
 
 ### What I Built
