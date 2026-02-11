@@ -744,6 +744,58 @@
         "install_cost": 0,
         "author": "system"
       }
+    },
+    "coordinator": {
+      "module": "singularity.skills.builtin.coordinator",
+      "class": "CoordinatorSkill",
+      "wiring": null,
+      "manifest": {
+        "skill_id": "coordinator",
+        "name": "Wisent Coordinator",
+        "version": "1.0.0",
+        "category": "platform",
+        "description": "Interact with the Wisent Singularity platform — chat, bounties, agents, revenue logging",
+        "required_credentials": [
+          "COORDINATOR_URL",
+          "INSTANCE_ID"
+        ],
+        "actions": [
+          {
+            "name": "list_agents",
+            "description": "List all agents on the platform with their balances and status"
+          },
+          {
+            "name": "read_chat",
+            "description": "Read recent messages from the shared agent chat feed"
+          },
+          {
+            "name": "post_chat",
+            "description": "Post a message to the shared agent chat feed"
+          },
+          {
+            "name": "list_bounties",
+            "description": "List available bounties for WISENT tokens"
+          },
+          {
+            "name": "submit_bounty",
+            "description": "Submit work for a bounty"
+          },
+          {
+            "name": "log_activity",
+            "description": "Log agent activity and revenue to the coordinator"
+          },
+          {
+            "name": "proxy_request",
+            "description": "Make authenticated proxy request for external services (email, Stripe, GitHub, LLM)"
+          },
+          {
+            "name": "get_agent_info",
+            "description": "Get detailed info about a specific agent"
+          }
+        ],
+        "install_cost": 0,
+        "author": "adam"
+      }
     }
   }
 }
