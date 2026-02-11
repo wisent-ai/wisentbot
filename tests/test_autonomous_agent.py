@@ -1,8 +1,8 @@
 """Tests for singularity.autonomous_agent — the main agent class."""
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch, PropertyMock
-from singularity.cognition.types import Action, TokenUsage, Decision, AgentState
+from unittest.mock import MagicMock, AsyncMock, patch
+from singularity.cognition.types import Action
 from singularity.skills.base.types import SkillResult
 
 

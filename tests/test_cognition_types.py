@@ -1,6 +1,5 @@
 """Tests for singularity.cognition.types — core data structures and pricing."""
 
-import pytest
 from singularity.cognition.types import (
     Action, TokenUsage, AgentState, Decision,
     calculate_api_cost, LLM_PRICING,

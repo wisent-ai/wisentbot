@@ -1,13 +1,11 @@
 """Tests for singularity.cognition.prompt_builder — prompt assembly and response parsing."""
 
-import pytest
 from unittest.mock import MagicMock
-from singularity.cognition.types import Action, AgentState, Decision
+from singularity.cognition.types import AgentState
 from singularity.cognition.prompt_builder import (
     _base_prompt, _format_tools, _format_context_sections,
     build_system_prompt, build_state_message, build_result_message,
     build_prompt, parse_response,
-    RESPONSE_FORMAT, ECONOMY_RULES,
 )
 
 

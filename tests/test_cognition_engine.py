@@ -1,8 +1,8 @@
 """Tests for singularity.cognition.engine — CognitionEngine."""
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from singularity.cognition.types import Action, TokenUsage, Decision, AgentState
+from unittest.mock import MagicMock
+from singularity.cognition.types import TokenUsage, AgentState
 from singularity.cognition.engine import CognitionEngine
 
 
@@ -177,7 +177,7 @@ class TestTrainingData:
         e.record_training_example("p2", "r2", "failure")
         result = e.export_training_data()
         # Should only have 1 line (1 success)
-        lines = [l for l in result.strip().split("\n") if l]
+        lines = [ln for ln in result.strip().split("\n") if ln]
         assert len(lines) == 1
 
     def test_get_training_examples_returns_copy(self):

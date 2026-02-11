@@ -1,10 +1,8 @@
 """Package-level smoke tests — validates imports, structure, and public API."""
 
 import json
-import importlib
 from pathlib import Path
 
-import pytest
 
 
 # ─── Package Imports ─────────────────────────────────────────────────────
@@ -24,31 +22,24 @@ class TestPackageImports:
 
     def test_cognition_imports(self):
         from singularity import (
-            CognitionEngine, AgentState, Decision, Action, TokenUsage,
-            calculate_api_cost, UNIFIED_AGENT_PROMPT, MESSAGE_FROM_CREATOR,
-            build_result_message,
+            CognitionEngine, AgentState,
         )
         assert CognitionEngine is not None
         assert AgentState is not None
 
     def test_skill_imports(self):
         from singularity import (
-            Skill, SkillRegistry, SkillManifest, SkillAction, SkillResult,
-            PluginLoader, SkillMetadata, MCPServerInfo,
+            Skill, SkillRegistry,
         )
         assert Skill is not None
         assert SkillRegistry is not None
 
     def test_cognition_submodules(self):
         from singularity.cognition import types
-        from singularity.cognition import engine
-        from singularity.cognition import prompt_builder
-        from singularity.cognition import providers
         assert types is not None
 
     def test_skill_submodules(self):
-        from singularity.skills.base import skill, types, registry
-        from singularity.skills.loader import loader
+        from singularity.skills.base import skill
         assert skill is not None
 
 

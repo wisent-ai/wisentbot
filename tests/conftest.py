@@ -7,7 +7,7 @@ so tests run without any API keys or network access.
 
 import sys
 import types
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import MagicMock
 import pytest
 
 
